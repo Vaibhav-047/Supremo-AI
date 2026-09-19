@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import patch, MagicMock
 from pathlib import Path
 
-from super import Intent, Supremo, VoiceUnavailable
+from supremo import Intent, Supremo, VoiceUnavailable
 
 
 class SupremoTests(unittest.TestCase):
@@ -53,7 +53,7 @@ class SupremoTests(unittest.TestCase):
     # --- Handling tests ---
 
     def test_open_existing_path(self):
-        with patch("super.Path.exists", return_value=True), patch.object(
+        with patch("supremo.Path.exists", return_value=True), patch.object(
             self.assistant, "_run"
         ) as run:
             self.assistant.open_target("~/Documents")

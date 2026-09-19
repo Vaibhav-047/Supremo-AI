@@ -1,7 +1,7 @@
 """Supremo: a small, safe desktop assistant for macOS.
 
-Run with: python3 super.py            (type commands)
-          python3 super.py --voice    (start in voice mode)
+Run with: python3 supremo.py            (type commands)
+          python3 supremo.py --voice    (start in voice mode)
 
 Voice input is optional. To enable it:
     brew install portaudio

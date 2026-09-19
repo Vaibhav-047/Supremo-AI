@@ -1,6 +1,6 @@
 """Supremo configuration.
 
-Tweak these values to customize assistant behavior without editing super.py.
+Tweak these values to customize assistant behavior without editing supremo.py.
 """
 
 import os

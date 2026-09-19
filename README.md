@@ -6,10 +6,10 @@ A small, safe desktop assistant for macOS that you talk to from the terminal.
 
 ```bash
 # No external dependencies required for basic use
-python3 super.py
+python3 supremo.py      # or: python3 main.py
 
 # Start in voice mode (requires speech packages)
-python3 super.py --voice
+python3 supremo.py --voice
 ```
 
 For voice mode, install the optional speech packages:
@@ -50,10 +50,10 @@ pip3 install SpeechRecognition pyaudio
 
 | File | Purpose |
 |------|---------|
-| `super.py` | Main assistant — parser, router, and all desktop actions |
-| `test_super.py` | Unit tests for parsing and command handling |
-| `new.py` | Entry point — runs Supremo from the terminal |
-| `al.y` | Configuration — tweak app settings without editing code |
+| `supremo.py` | Main assistant — parser, router, and all desktop actions |
+| `test_supremo.py` | Unit tests for parsing and command handling |
+| `main.py` | Entry point — runs Supremo from the terminal |
+| `config.py` | Configuration — tweak app settings without editing code |
 | `requirements.txt` | Python dependencies for voice mode |
 
 ## License
