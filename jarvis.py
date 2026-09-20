@@ -187,6 +187,30 @@ class JarvisApp:
             self._voice_error = f"Import failed: {e}"
             return False
 
+        # Packages imported successfully — on macOS, also verify mic access
+        if IS_MAC:
+            try:
+                import pyaudio as pa
+                p = pa.PyAudio()
+                count = p.get_device_count()
+                has_input = any(
+                    p.get_device_info_by_index(i).get("maxInputChannels", 0) > 0
+                    for i in range(count)
+                )
+                p.terminate()
+                if not has_input:
+                    self._voice_error = (
+                        "No microphone input device found.\n"
+                        "Grant microphone access in System Settings > "
+                        "Privacy & Security > Microphone."
+                    )
+                    return False
+            except Exception as e:
+                self._voice_error = f"Microphone error: {e}"
+                return False
+
+        return True
+
     def _arch_mismatch_msg(self, error):
         """Build a helpful message for architecture mismatch errors."""
         import platform
@@ -494,17 +518,38 @@ class JarvisApp:
     def _voice_loop(self):
         """Continuous voice listening loop (auto mode)."""
         import time
+        silent_count = 0
         while self.voice_active:
             try:
                 transcript = self.assistant.listen_once(quiet=True)
                 if transcript:
+                    silent_count = 0
                     self.root.after(0, self._process_voice_transcript, transcript)
+                else:
+                    silent_count += 1
+                    if silent_count == 3:
+                        self.root.after(0, self.add_message, "system", "Supremo",
+                                        "Still listening — speak into the microphone.")
+                    elif silent_count == 10:
+                        self.root.after(0, self.add_message, "system", "Supremo",
+                                        "No audio detected. Check microphone "
+                                        "permissions in System Settings > "
+                                        "Privacy & Security > Microphone.")
+                        silent_count = 0
                 time.sleep(0.3)
-            except VoiceUnavailable:
+            except VoiceUnavailable as e:
+                self.root.after(0, self.add_message, "system", "Supremo", str(e))
+                self.root.after(0, self._safe_stop_voice)
                 break
             except Exception as e:
                 self.root.after(0, self.add_message, "error", "Voice", str(e))
+                self.root.after(0, self._safe_stop_voice)
                 break
+
+    def _safe_stop_voice(self):
+        """Stop voice mode from a background thread (thread-safe)."""
+        self.voice_active = False
+        self._update_voice_ui()
 
     def stop_voice(self):
         self.voice_active = False
