@@ -950,7 +950,7 @@ def main():
     root.option_add("*tearOff", tk.FALSE)
     root.bind("<Escape>", lambda e: root.quit())
     root.bind("<space>", app._on_ptt_press)
-    root.bind("<Key-release-space>", app._on_ptt_release)
+    root.bind("<KeyRelease-space>", app._on_ptt_release)
 
     # Antigravity: fade-in animation
     root.wm_attributes("-alpha", 0.0)
