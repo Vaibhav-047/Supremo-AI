@@ -146,21 +146,42 @@ class JarvisApp:
     # Setup
     # ------------------------------------------------------------------
     def _check_voice_available(self):
-        """Check if voice packages are installed and importable."""
+        """Check if voice packages are installed and importable.
+
+        Detects architecture mismatches (arm64/x86_64) that commonly
+        occur when the app runs under Rosetta on Apple Silicon.
+        """
         try:
             import speech_recognition  # noqa: F401
-            try:
-                import pyaudio  # noqa: F401
-            except Exception as e:
-                self._voice_error = f"pyaudio: {e}"
-                return False
-            return True
-        except ImportError as e:
-            self._voice_error = f"speech_recognition: {e}"
-            return False
         except Exception as e:
-            self._voice_error = f"unexpected: {type(e).__name__}: {e}"
+            err = str(e)
+            if "incompatible architecture" in err or "mach-o" in err:
+                self._voice_error = self._arch_mismatch_msg(e)
+            else:
+                self._voice_error = f"speech_recognition: {e}"
             return False
+        try:
+            import pyaudio  # noqa: F401
+        except Exception as e:
+            err = str(e)
+            if "incompatible architecture" in err or "mach-o" in err:
+                self._voice_error = self._arch_mismatch_msg(e)
+            else:
+                self._voice_error = f"pyaudio: {e}"
+            return False
+        return True
+
+    def _arch_mismatch_msg(self, error):
+        """Build a helpful message for architecture mismatch errors."""
+        import platform
+        py_arch = platform.machine()
+        fix_cmd = f"arch -{py_arch} /usr/local/bin/python3 -m pip install SpeechRecognition pyaudio"
+        return (
+            f"Architecture mismatch (Python={py_arch}, "
+            f"library built for different arch).\n"
+            f"Fix: Run app without Rosetta, or reinstall:\n"
+            f"  {fix_cmd}"
+        )
 
     def setup_window_effects(self):
         """Antigravity window: transparent, floating, always-on-top, borderless."""
@@ -422,7 +443,7 @@ class JarvisApp:
         """Manually trigger one voice listening cycle."""
         if not self.voice_enabled:
             self.add_message("system", "Supremo",
-                             f"Voice mode unavailable: {self._voice_error}\n"
+                             f"Voice mode unavailable: {self._voice_error}\\n"
                              "Install: pip install SpeechRecognition pyaudio")
             return
         self.voice_active = True
