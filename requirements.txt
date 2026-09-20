@@ -3,9 +3,12 @@
 #   - Python 3.8+
 #   - tkinter (usually included with Python)
 
-# Voice mode (optional):
+# Voice mode (optional, replaces pyaudio which has arch issues):
+#   sounddevice uses CFFI (loads portaudio at runtime) — no arch mismatch
+#   numpy needed for audio level processing (VAD)
+sounddevice>=0.4.6
+numpy>=1.24.0
 SpeechRecognition>=3.10.0
-pyaudio>=0.2.14
 
 # ChatGPT skill (optional — requires OPENAI_API_KEY):
 # openai>=1.0.0

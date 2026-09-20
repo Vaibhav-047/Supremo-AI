@@ -159,7 +159,8 @@ class JarvisApp:
 
         try:
             import speech_recognition  # noqa: F401
-            import pyaudio  # noqa: F401
+            import sounddevice  # noqa: F401
+            import numpy  # noqa: F401
             return True
         except Exception as e:
             err = str(e)
@@ -171,7 +172,7 @@ class JarvisApp:
                 try:
                     result = _sp.run(
                         ["arch", f"-{target_arch}", _sys.executable, "-c",
-                         "import pyaudio, speech_recognition"],
+                         "import sounddevice, numpy, speech_recognition"],
                         capture_output=True, timeout=15
                     )
                     if result.returncode == 0:
@@ -190,14 +191,24 @@ class JarvisApp:
         # Packages imported successfully — on macOS, also verify mic access
         if IS_MAC:
             try:
-                import pyaudio as pa
-                p = pa.PyAudio()
-                count = p.get_device_count()
+                import sounddevice as sd
+                import numpy as np
+                # Query devices for any with input channels
+                devices = sd.query_devices()
                 has_input = any(
-                    p.get_device_info_by_index(i).get("maxInputChannels", 0) > 0
-                    for i in range(count)
+                    d.get("max_input_channels", 0) > 0 for d in devices
                 )
-                p.terminate()
+                # Also try opening a brief stream to test access
+                if has_input:
+                    with sd.InputStream(samplerate=16000, channels=1,
+                                        dtype="int16") as stream:
+                        chunk, _ = stream.read(int(16000 * 0.1))
+                        if np.abs(chunk).mean() == 0:
+                            self._voice_error = (
+                                "Microphone found but no audio. Check System "
+                                "Settings > Privacy & Security > Microphone."
+                            )
+                            return False
                 if not has_input:
                     self._voice_error = (
                         "No microphone input device found.\n"
@@ -215,7 +226,7 @@ class JarvisApp:
         """Build a helpful message for architecture mismatch errors."""
         import platform
         py_arch = platform.machine()
-        fix_cmd = f"arch -{py_arch} /usr/local/bin/python3 -m pip install SpeechRecognition pyaudio"
+        fix_cmd = f"arch -{py_arch} /usr/local/bin/python3 -m pip install sounddevice SpeechRecognition numpy"
         return (
             f"Architecture mismatch (Python={py_arch}, "
             f"library built for different arch).\n"
@@ -551,7 +562,7 @@ class JarvisApp:
             for target in ["arm64", "x86_64"]:
                 try:
                     cmd = ["arch", f"-{target}", python, "-m", "pip", "install",
-                           "SpeechRecognition", "pyaudio"]
+                           "sounddevice", "SpeechRecognition", "numpy"]
                     result = subprocess.run(cmd, capture_output=True,
                                             text=True, timeout=60)
                     ok = result.returncode == 0
@@ -563,7 +574,7 @@ class JarvisApp:
                 try:
                     result = subprocess.run(
                         ["arch", f"-{target}", python, "-c",
-                         "import speech_recognition, pyaudio; print('OK')"],
+                         "import sounddevice, numpy, speech_recognition; print('OK')"],
                         capture_output=True, text=True, timeout=15)
                     if result.returncode == 0 and "OK" in result.stdout:
                         self.root.after(0, self.add_message, "system", "Supremo",
@@ -576,21 +587,21 @@ class JarvisApp:
 
             self.root.after(0, self.add_message, "system", "Supremo",
                             "Voice fix attempted. If still broken, run manually:\n"
-                            "  arch -arm64 python3 -m pip install SpeechRecognition pyaudio\n"
-                            "  arch -x86_64 python3 -m pip install SpeechRecognition pyaudio\n"
+                            "  arch -arm64 python3 -m pip install sounddevice SpeechRecognition numpy\n"
+                            "  arch -x86_64 python3 -m pip install sounddevice SpeechRecognition numpy\n"
                             + "\n".join(messages))
         else:
             try:
                 result = subprocess.run(
                     [sys.executable, "-m", "pip", "install",
-                     "SpeechRecognition", "pyaudio"],
+                     "sounddevice", "SpeechRecognition", "numpy"],
                     capture_output=True, text=True, timeout=60)
                 if result.returncode == 0:
                     self.root.after(0, self.add_message, "system", "Supremo",
                                     "Packages installed. Restart Supremo.")
                 else:
                     self.root.after(0, self.add_message, "system", "Supremo",
-                                    "Install failed. Run: pip install SpeechRecognition pyaudio")
+                                    "Install failed. Run: pip install sounddevice SpeechRecognition numpy")
             except Exception as e:
                 self.root.after(0, self.add_message, "system", "Supremo",
                                 f"Install error: {e}")

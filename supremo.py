@@ -6,8 +6,8 @@ Run with:
     python3 main.py                 (GUI mode, JARVIS-style)
 
 Voice input is optional. To enable it:
-    macOS:   brew install portaudio && pip3 install SpeechRecognition pyaudio
-    Windows: pip install SpeechRecognition pyaudio
+    macOS:   pip3 install sounddevice SpeechRecognition
+    Windows: pip install sounddevice SpeechRecognition
 
 Skills:
     register_skill("name", "description", handler)  # add a custom skill
@@ -658,53 +658,76 @@ Supremo can help with:
         transcribed, so it needs an internet connection.
         """
         try:
+            import sounddevice as sd
+            import numpy as np
             import speech_recognition as sr
         except ImportError:
-            install_hint = (
-                "  brew install portaudio && pip3 install SpeechRecognition pyaudio"
-                if IS_MAC
-                else "  pip install SpeechRecognition pyaudio"
-            )
             raise VoiceUnavailable(
-                f"Voice input needs extra packages:\n  {install_hint}"
+                "Voice input needs pip packages. Install with:\n"
+                "  pip install sounddevice SpeechRecognition numpy"
             ) from None
 
+        sample_rate = 16000
+        chunk_duration = 0.3  # seconds per chunk
+        chunk_size = int(sample_rate * chunk_duration)
+        # VAD threshold: mean absolute amplitude above this = speech
+        speech_threshold = 300
+
         recognizer = sr.Recognizer()
+
         try:
-            with sr.Microphone() as source:
-                recognizer.adjust_for_ambient_noise(source, duration=0.4)
-                if not quiet:
-                    print("Listening...")
-                audio = recognizer.listen(
-                    source,
-                    timeout=self.LISTEN_TIMEOUT,
-                    phrase_time_limit=self.PHRASE_LIMIT,
-                )
-        except sr.WaitTimeoutError:
             if not quiet:
-                print(
-                    "I didn't hear anything. If this keeps happening, allow "
-                    "microphone access for your terminal in System Settings > "
-                    "Privacy & Security > Microphone."
-                    if IS_MAC
-                    else "I didn't hear anything. Check your microphone permissions."
-                )
-            return None
-        except AttributeError:
-            # SpeechRecognition raises this when PyAudio is missing.
-            install_hint = (
-                "  brew install portaudio\n  pip3 install pyaudio"
-                if IS_MAC
-                else "  pip install pyaudio"
-            )
-            raise VoiceUnavailable(
-                f"PyAudio is missing. Install it with:\n  {install_hint}"
-            ) from None
+                print("Listening...")
+
+            audio_chunks: list[bytes] = []
+            speech_started = False
+            silence_streak = 0
+            max_chunks = int(self.PHRASE_LIMIT / chunk_duration)
+
+            with sd.InputStream(
+                samplerate=sample_rate, channels=1, dtype="int16"
+            ) as stream:
+                # Phase 1 — wait for speech (with timeout)
+                for i in range(int(self.LISTEN_TIMEOUT / chunk_duration)):
+                    chunk, _ = stream.read(chunk_size)
+                    audio_level = float(np.abs(chunk).mean())
+                    if audio_level > speech_threshold:
+                        speech_started = True
+                        audio_chunks.append(chunk.tobytes())
+                        break
+
+                if not speech_started:
+                    if not quiet:
+                        print(
+                            "I didn't hear anything. If this keeps happening, check "
+                            "microphone permissions in System Settings."
+                            if IS_MAC
+                            else "I didn't hear anything. Check your microphone."
+                        )
+                    return None
+
+                # Phase 2 — record until silence or phrase limit
+                for _ in range(max_chunks - len(audio_chunks)):
+                    chunk, _ = stream.read(chunk_size)
+                    audio_chunks.append(chunk.tobytes())
+                    audio_level = float(np.abs(chunk).mean())
+                    if audio_level < speech_threshold:
+                        silence_streak += 1
+                        if silence_streak > 3:
+                            break
+                    else:
+                        silence_streak = 0
+
+        except sd.PortAudioError as error:
+            raise VoiceUnavailable(f"Could not open the microphone: {error}") from None
         except OSError as error:
             raise VoiceUnavailable(f"Could not open the microphone: {error}") from None
 
         try:
-            return recognizer.recognize_google(audio)
+            audio_data = sr.AudioData(
+                b"".join(audio_chunks), sample_rate, 2
+            )
+            return recognizer.recognize_google(audio_data)
         except sr.UnknownValueError:
             if not quiet:
                 print("Sorry, I couldn't understand that.")
