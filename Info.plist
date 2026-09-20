@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>Supremo</string>
+    <key>CFBundleDisplayName</key>
+    <string>Supremo</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.supremo.desktop</string>
+    <key>CFBundleVersion</key>
+    <string>1.1.0</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.1.0</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleExecutable</key>
+    <string>Supremo</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>LSMinimumSystemVersion</key>
+    <string>10.12</string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>Supremo needs access to control Terminal, Finder, and other apps to manage your desktop.</string>
+    <key>NSCameraUsageDescription</key>
+    <string>Supremo needs camera access for face detection in JARVIS mode.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Supremo needs microphone access for voice commands.</string>
+</dict>
+</plist>
