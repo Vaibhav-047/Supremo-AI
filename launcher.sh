@@ -27,16 +27,14 @@ fi
 if [ "$SYS_ARCH" = "arm64" ]; then
     PY_ARCH=$("$PYTHON" -c "import platform; print(platform.machine())" 2>/dev/null)
     if [ "$PY_ARCH" = "x86_64" ]; then
-        # Python is x86_64 under Rosetta; try forcing arm64
-        if arch -arm64 "$PYTHON" -c "pass" 2>/dev/null; then
+        # Python is x86_64 under Rosetta — test if pyaudio imports in arm64 mode
+        if arch -arm64 "$PYTHON" -c "import pyaudio, speech_recognition" 2>/dev/null; then
             exec arch -arm64 "$PYTHON" "$RESOURCES_DIR/main.py" "$@"
         fi
-        # Fallback: try arm64 Homebrew Python if available
-        if [ -x "/opt/homebrew/bin/python3" ]; then
-            HB_ARCH=$(/opt/homebrew/bin/python3 -c "import platform; print(platform.machine())" 2>/dev/null)
-            if [ "$HB_ARCH" = "arm64" ]; then
-                PYTHON="/opt/homebrew/bin/python3"
-            fi
+        # Fallback: try arm64 Homebrew Python if it has the packages
+        if [ -x "/opt/homebrew/bin/python3" ] && \
+           /opt/homebrew/bin/python3 -c "import pyaudio, speech_recognition" 2>/dev/null; then
+            exec "/opt/homebrew/bin/python3" "$RESOURCES_DIR/main.py" "$@"
         fi
     fi
 fi

@@ -148,28 +148,44 @@ class JarvisApp:
     def _check_voice_available(self):
         """Check if voice packages are installed and importable.
 
-        Detects architecture mismatches (arm64/x86_64) that commonly
-        occur when the app runs under Rosetta on Apple Silicon.
+        Detects architecture mismatches (arm64/x86_64) on macOS and
+        automatically re-executes the app with the correct architecture
+        if possible.
         """
+        import platform as _pf
+        import subprocess as _sp
+        import sys as _sys
+        import os as _os
+
         try:
             import speech_recognition  # noqa: F401
-        except Exception as e:
-            err = str(e)
-            if "incompatible architecture" in err or "mach-o" in err:
-                self._voice_error = self._arch_mismatch_msg(e)
-            else:
-                self._voice_error = f"speech_recognition: {e}"
-            return False
-        try:
             import pyaudio  # noqa: F401
+            return True
         except Exception as e:
             err = str(e)
-            if "incompatible architecture" in err or "mach-o" in err:
+            if ("incompatible architecture" in err or "mach-o" in err) and _pf.system() == "Darwin":
+                # On Apple Silicon, Python may run as x86_64 (Rosetta) while
+                # packages are arm64. Try the opposite architecture.
+                current_arch = _pf.machine()
+                target_arch = "arm64" if current_arch == "x86_64" else "x86_64"
+                try:
+                    result = _sp.run(
+                        ["arch", f"-{target_arch}", _sys.executable, "-c",
+                         "import pyaudio, speech_recognition"],
+                        capture_output=True, timeout=15
+                    )
+                    if result.returncode == 0:
+                        # Packages work in target arch — re-exec app
+                        _os.execvp("arch", [
+                            "arch", f"-{target_arch}", _sys.executable,
+                            _os.path.abspath(_sys.argv[0])
+                        ] + _sys.argv[1:])
+                except Exception:
+                    pass
                 self._voice_error = self._arch_mismatch_msg(e)
-            else:
-                self._voice_error = f"pyaudio: {e}"
+                return False
+            self._voice_error = f"Import failed: {e}"
             return False
-        return True
 
     def _arch_mismatch_msg(self, error):
         """Build a helpful message for architecture mismatch errors."""
