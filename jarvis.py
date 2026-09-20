@@ -119,6 +119,7 @@ class JarvisApp:
         self.root = root
         self.assistant = Supremo()
         self.voice_active = False
+        self.ptt_active = False
         self._voice_error = ""
         self.voice_enabled = self._check_voice_available()
         self._drag_start = {"x": 0, "y": 0}
@@ -128,7 +129,8 @@ class JarvisApp:
         # Auto-start voice mode on launch
         if self.voice_enabled:
             self.add_message("system", "Supremo",
-                             "Voice mode auto-started. Say 'stop listening' to disable.")
+                             "Voice mode auto-started. Say 'stop listening' to disable.\n"
+                             "Hold SPACE for push-to-talk mode.")
             self.status_var.set("🔊 Listening...")
             self.voice_btn.configure(fg=self.MIC_ON)
             self.viz.set_listening(True)
@@ -137,8 +139,9 @@ class JarvisApp:
         else:
             self.add_message("system", "Supremo",
                              "Voice mode unavailable.\n"
-                             "Install: pip install SpeechRecognition pyaudio\n"
-                             f"  ({self._voice_error})")
+                             "Install: pip install sounddevice SpeechRecognition numpy\n"
+                             f"  ({self._voice_error})\n"
+                             "Typing mode active — type a command, I'll respond by voice.")
 
         self.speak("Supremo online. How can I help you?")
 
@@ -510,7 +513,7 @@ class JarvisApp:
         if not self.voice_enabled:
             self.add_message("system", "Supremo",
                              f"Voice mode unavailable: {self._voice_error}\\n"
-                             "Install: pip install SpeechRecognition pyaudio")
+                             "Install: pip install sounddevice SpeechRecognition numpy")
             return
         self.voice_active = True
         self._update_voice_ui()
@@ -542,7 +545,106 @@ class JarvisApp:
         threading.Thread(target=self._voice_loop, daemon=True).start()
 
     # ------------------------------------------------------------------
-    # Voice fix
+    # Push-to-Talk (hold Space key to listen)
+    # ------------------------------------------------------------------
+    def _on_ptt_press(self, event):
+        if not self.voice_enabled or self.voice_active:
+            return
+        if self.ptt_active:
+            return
+        self.ptt_active = True
+        self.voice_active = True
+        self._update_voice_ui()
+        threading.Thread(target=self._ptt_listen, daemon=True).start()
+
+    def _on_ptt_release(self, event):
+        if self.ptt_active:
+            self.ptt_active = False
+
+    def _ptt_listen(self):
+        """Record audio via sounddevice while PTT key is held, then transcribe."""
+        import sounddevice as sd
+        import numpy as np
+        import speech_recognition as sr
+
+        sample_rate = 16000
+        audio_chunks = []
+
+        def callback(indata, frames, status):
+            if status:
+                import sys as _sys
+                print(f"Audio: {status}", file=_sys.stderr)
+            if not self.ptt_active:
+                return sd.CallbackStop
+            audio_chunks.append(indata.tobytes())
+
+        try:
+            with sd.InputStream(
+                samplerate=sample_rate, channels=1,
+                dtype="int16", callback=callback
+            ) as stream:
+                # Block until PTT released or phrase limit reached
+                sd.sleep(int(self.assistant.PHRASE_LIMIT * 1000))
+        except Exception as e:
+            self.root.after(0, self.add_message, "error", "Error",
+                            f"Voice input error: {e}")
+            self.ptt_active = False
+            self.voice_active = False
+            self.root.after(0, self._update_voice_ui)
+            self.root.after(0, self._reset_status)
+            return
+
+        # Stop recording state
+        self.ptt_active = False
+        self.voice_active = False
+        self.root.after(0, self._update_voice_ui)
+
+        # Transcribe captured audio
+        if audio_chunks:
+            audio_data = sr.AudioData(
+                b"".join(audio_chunks), sample_rate, 2
+            )
+            recognizer = sr.Recognizer()
+            try:
+                transcript = recognizer.recognize_google(audio_data)
+                if transcript:
+                    self.root.after(0, self._process_voice_transcript, transcript)
+                else:
+                    self.root.after(0, self.add_message, "system", "Supremo",
+                                    "No speech detected.")
+            except sr.UnknownValueError:
+                self.root.after(0, self.add_message, "system", "Supremo",
+                                "Couldn't understand that.")
+            except Exception as e:
+                self.root.after(0, self.add_message, "error", "Error", str(e))
+
+        self.root.after(0, self._reset_status)
+
+    def _update_voice_ui(self):
+        if self.voice_active:
+            self.voice_btn.configure(fg=self.MIC_ON)
+            if self.ptt_active:
+                self.status_var.set("🔴 Push-to-talk — holding SPACE")
+                self.viz.set_listening(True)
+                self._animate_logo()
+            else:
+                self.status_var.set("🔊 Listening...")
+                self.viz.set_listening(True)
+                self._animate_logo()
+        else:
+            self.voice_btn.configure(
+                fg=self.MIC_ON if self.voice_enabled else self.MIC_OFF)
+            self.viz.set_listening(False)
+            self._draw_logo(pulse=False)
+            if self.voice_enabled:
+                self.status_var.set("Voice off. Hold SPACE or click 🎙️")
+            else:
+                self.status_var.set("Type a command (🔧 to fix voice)")
+            self._draw_logo(pulse=False)
+            if self.voice_enabled:
+                self.status_var.set("Voice off. Hold SPACE or click 🎙️")
+            else:
+                self.status_var.set("Type a command (🔧 to fix voice)")
     # ------------------------------------------------------------------
     def _fix_voice(self):
         """Auto-detect Python architecture and install packages correctly."""
@@ -657,8 +759,9 @@ class JarvisApp:
 
     def stop_voice(self):
         self.voice_active = False
+        self.ptt_active = False
         self.root.after(0, self._update_voice_ui)
-        self.root.after(0, lambda: self.status_var.set("Voice off. Click 🎙️ to listen."))
+        self.root.after(0, self._reset_status)
 
     def _update_voice_ui(self):
         if self.voice_active:
@@ -796,10 +899,12 @@ class JarvisApp:
         self.root.after(0, self._reset_status)
 
     def _reset_status(self):
-        if self.voice_active:
+        if self.voice_active and self.ptt_active:
+            self.status_var.set("🔴 Push-to-talk — holding SPACE")
+        elif self.voice_active:
             self.status_var.set("🔊 Listening...")
         elif self.voice_enabled:
-            self.status_var.set("Ready — type or click 🎙️")
+            self.status_var.set("Ready — hold SPACE or type")
         else:
             self.status_var.set("Voice unavailable — type to chat (🔧 to fix)")
 
@@ -844,6 +949,8 @@ def main():
     root.configure(bg=JarvisApp.GRADIENT_BOTTOM)
     root.option_add("*tearOff", tk.FALSE)
     root.bind("<Escape>", lambda e: root.quit())
+    root.bind("<space>", app._on_ptt_press)
+    root.bind("<Key-release-space>", app._on_ptt_release)
 
     # Antigravity: fade-in animation
     root.wm_attributes("-alpha", 0.0)

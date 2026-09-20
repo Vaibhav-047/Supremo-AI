@@ -21,19 +21,19 @@ else
 fi
 
 # On Apple Silicon, ensure Python matches system architecture to avoid
-# arm64/x86_64 mismatch with compiled C extensions (e.g., pyaudio, audioop-lts).
-# When .app bundles launch, macOS may run Python under Rosetta (x86_64),
-# but packages like pyaudio are compiled for native arm64.
+# arm64/x86_64 mismatch with compiled C extensions.
+# sounddevice uses CFFI (runtime loading) so it avoids the arch mismatch
+# that pyaudio had, but we still verify imports work.
 if [ "$SYS_ARCH" = "arm64" ]; then
     PY_ARCH=$("$PYTHON" -c "import platform; print(platform.machine())" 2>/dev/null)
     if [ "$PY_ARCH" = "x86_64" ]; then
-        # Python is x86_64 under Rosetta — test if pyaudio imports in arm64 mode
-        if arch -arm64 "$PYTHON" -c "import pyaudio, speech_recognition" 2>/dev/null; then
+        # Python is x86_64 under Rosetta — test if packages import in arm64 mode
+        if arch -arm64 "$PYTHON" -c "import sounddevice, numpy, speech_recognition" 2>/dev/null; then
             exec arch -arm64 "$PYTHON" "$RESOURCES_DIR/main.py" "$@"
         fi
         # Fallback: try arm64 Homebrew Python if it has the packages
         if [ -x "/opt/homebrew/bin/python3" ] && \
-           /opt/homebrew/bin/python3 -c "import pyaudio, speech_recognition" 2>/dev/null; then
+           /opt/homebrew/bin/python3 -c "import sounddevice, numpy, speech_recognition" 2>/dev/null; then
             exec "/opt/homebrew/bin/python3" "$RESOURCES_DIR/main.py" "$@"
         fi
     fi

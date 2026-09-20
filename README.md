@@ -24,8 +24,8 @@ python3 supremo.py --voice
 # Core: Python 3.8+ with tkinter (usually included)
 
 # Voice mode (optional):
-#   macOS:   brew install portaudio && pip3 install SpeechRecognition pyaudio
-#   Windows: pip install SpeechRecognition pyaudio
+#   macOS:   pip3 install sounddevice SpeechRecognition numpy
+#   Windows: pip install sounddevice SpeechRecognition numpy
 ```
 
 ## Commands
