@@ -3,7 +3,7 @@
 # Run with: python3 main.py  (from the app bundle's Resources directory)
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-RESOURCES_DIR="$(dirname "$SCRIPT_DIR")/Contents/Resources"
+RESOURCES_DIR="$(dirname "$SCRIPT_DIR")/Resources"
 
 export PATH="/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 cd "$RESOURCES_DIR"
