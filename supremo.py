@@ -106,9 +106,14 @@ class Supremo:
             return Intent("voice_mode")
         if normalized in {"stop listening", "voice off"}:
             return Intent("stop_listening")
+        if normalized in {"close", "terminate"}:
+            return Intent("close")
         for prefix in ("open ", "launch ", "start "):
             if normalized.startswith(prefix):
                 return Intent("open", text[len(prefix):])
+        for prefix in ("close ", "terminate "):
+            if normalized.startswith(prefix):
+                return Intent("close", text[len(prefix):])
         for prefix in ("search ", "google ", "look up "):
             if normalized.startswith(prefix):
                 return Intent("search", text[len(prefix):])
@@ -136,6 +141,7 @@ class Supremo:
             "battery": self.show_battery,
             "screenshot": self.take_screenshot,
             "open": self.open_target,
+            "close": self.close_target,
             "search": self.search_web,
             "find": self.find_files,
             "say": self.speak,
@@ -165,6 +171,7 @@ class Supremo:
 Supremo can help with:
   open Safari                Launch an app
   open https://example.com   Open a website
+  close Safari               Quit an app
   search Python dataclasses  Search the web
   find budget                Find files in your home folder
   say good morning           Speak a short phrase
@@ -213,6 +220,15 @@ Supremo can help with:
         url = target if "://" in target else f"https://{target}"
         print(f"Opening {url}")
         webbrowser.open(url)
+
+    def close_target(self, app_name: str) -> None:
+        app_name = app_name.strip()
+        if not app_name:
+            print("Tell me which app to close.")
+            return
+        name = self.APP_ALIASES.get(app_name.lower(), app_name)
+        print(f"Closing {name}...")
+        self._run(["osascript", "-e", f'tell application "{name}" to quit'])
 
     def search_web(self, query: str) -> None:
         query = query.strip()

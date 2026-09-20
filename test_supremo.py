@@ -19,6 +19,11 @@ class SupremoTests(unittest.TestCase):
         self.assertEqual(self.assistant.parse("look up Python"), Intent("search", "Python"))
         self.assertEqual(self.assistant.parse("quit"), Intent("quit"))
 
+    def test_parse_close_command(self):
+        self.assertEqual(self.assistant.parse("close Safari"), Intent("close", "Safari"))
+        self.assertEqual(self.assistant.parse("terminate chrome"), Intent("close", "chrome"))
+        self.assertEqual(self.assistant.parse("close finder"), Intent("close", "finder"))
+
     def test_parse_polite_and_new_commands(self):
         self.assertEqual(
             self.assistant.parse("please open Safari"),
@@ -71,6 +76,25 @@ class SupremoTests(unittest.TestCase):
         self.assertFalse(self.assistant.handle(Intent("quit")))
 
     # --- Safety tests ---
+
+    def test_close_uses_alias_and_osascript(self):
+        with patch.object(self.assistant, "_run") as run:
+            self.assistant.close_target("safari")
+        run.assert_called_once_with(
+            ["osascript", "-e", 'tell application "Safari" to quit']
+        )
+
+    def test_close_unknown_app_uses_raw_name(self):
+        with patch.object(self.assistant, "_run") as run:
+            self.assistant.close_target("MyCoolApp")
+        run.assert_called_once_with(
+            ["osascript", "-e", 'tell application "MyCoolApp" to quit']
+        )
+
+    def test_close_empty_is_noop(self):
+        with patch.object(self.assistant, "_run") as run:
+            self.assistant.close_target("")
+        run.assert_not_called()
 
     def test_run_command_blocks_risky_binaries(self):
         with patch("builtins.input") as prompt:

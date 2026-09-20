@@ -29,6 +29,7 @@ pip3 install SpeechRecognition pyaudio
 | `battery` | Show battery status |
 | `screenshot` | Save a screenshot to Desktop |
 | `open <app/url/path>` | Open an app, website, or file |
+| `close <app>` | Quit an app |
 | `search <query>` | Search the web |
 | `find <name>` | Find files in your home folder |
 | `say <text>` | Speak a phrase aloud |
