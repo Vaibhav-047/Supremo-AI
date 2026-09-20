@@ -1,3 +1,14 @@
-# Optional dependencies for voice mode
+# Supremo — Desktop Management AI dependencies
+# Core (no external packages required):
+#   - Python 3.8+
+#   - tkinter (usually included with Python)
+
+# Voice mode (optional):
 SpeechRecognition>=3.10.0
-pyaudio>=0.2.11
+pyaudio>=0.2.14
+
+# Windows extras (optional, for better TTS on Windows):
+# pyttsx3>=2.90
+
+# Cross-platform notifications (optional):
+# plyer>=2.1.0

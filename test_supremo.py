@@ -138,6 +138,64 @@ class SupremoTests(unittest.TestCase):
             except EOFError:
                 self.fail("run_command should not propagate EOFError")
 
+    # --- Skills system tests ---
+    def test_parse_skills_command(self):
+        """'skills' should return a skill_list intent."""
+        self.assertEqual(self.assistant.parse("skills"), Intent("skills"))
+
+    def test_parse_skill_command(self):
+        """'skill <name> <args>' should return a skill intent."""
+        self.assertEqual(
+            self.assistant.parse("skill calculate 2 + 2"),
+            Intent("skill", "calculate 2 + 2"),
+        )
+
+    def test_default_skills_registered(self):
+        """Default skills (calculate, note, remind) should be registered."""
+        names = {name for name, _ in self.assistant.list_skills()}
+        self.assertIn("calculate", names)
+        self.assertIn("note", names)
+        self.assertIn("remind", names)
+
+    def test_register_custom_skill(self):
+        """register_skill should add a new skill to the registry."""
+        self.assistant.register_skill("test", "A test skill", lambda v: f"got: {v}")
+        names = {name for name, _ in self.assistant.list_skills()}
+        self.assertIn("test", names)
+
+    def test_execute_known_skill(self):
+        """execute_skill should call the handler and print its output."""
+        self.assistant.register_skill("test", "A test skill", lambda v: f"got: {v}")
+        with patch("builtins.print") as mock_print:
+            self.assistant.execute_skill("test hello")
+        mock_print.assert_called_once_with("got: hello")
+
+    def test_execute_unknown_skill(self):
+        """execute_skill should print a helpful message for unknown skills."""
+        with patch("builtins.print") as mock_print:
+            self.assistant.execute_skill("nonexistent")
+        mock_print.assert_called_once()
+        self.assertIn("No skill", mock_print.call_args[0][0])
+
+    def test_calculate_skill(self):
+        """The built-in calculate skill should evaluate math expressions."""
+        with patch("builtins.print") as mock_print:
+            self.assistant.execute_skill("calculate 2 + 2")
+        mock_print.assert_called_once_with("Result: 4")
+
+    def test_calculate_skill_multiplication(self):
+        """The calculate skill should handle multiplication."""
+        with patch("builtins.print") as mock_print:
+            self.assistant.execute_skill("calculate 6 * 7")
+        mock_print.assert_called_once_with("Result: 42")
+
+    def test_unregister_skill(self):
+        """unregister_skill should remove a skill."""
+        self.assistant.register_skill("temp", "A temp skill", lambda v: "temp")
+        self.assistant.unregister_skill("temp")
+        names = {name for name, _ in self.assistant.list_skills()}
+        self.assertNotIn("temp", names)
+
 
 if __name__ == "__main__":
     unittest.main()

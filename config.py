@@ -1,18 +1,26 @@
-"""Supremo configuration.
+"""Supremo configuration — tweak these to customize behavior.
 
-Tweak these values to customize assistant behavior without editing supremo.py.
+Works on macOS, Windows, and Linux. Platform-specific defaults
+are applied automatically in supremo.py.
 """
 
 import os
 
-# --- App aliases: maps spoken/typed names to macOS app names ---
+# --- App aliases: maps spoken/typed names to system app names ---
+# macOS names are used by default; Windows/Linux names are resolved at runtime.
 APP_ALIASES = {
     "browser": "Safari",
     "safari": "Safari",
     "chrome": "Google Chrome",
+    "edge": "Microsoft Edge",
+    "firefox": "Firefox",
     "finder": "Finder",
+    "explorer": "explorer",        # Windows
     "terminal": "Terminal",
+    "cmd": "cmd",                  # Windows
+    "powershell": "PowerShell",
     "notes": "Notes",
+    "notepad": "Notepad",          # Windows
     "calendar": "Calendar",
     "mail": "Mail",
     "music": "Music",
@@ -20,6 +28,7 @@ APP_ALIASES = {
     "vscode": "Visual Studio Code",
     "preview": "Preview",
     "settings": "System Settings",
+    "calc": "Calculator",
     "calculator": "Calculator",
     "messages": "Messages",
 }

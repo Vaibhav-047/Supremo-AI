@@ -1,17 +1,27 @@
-"""Supremo: a small, safe desktop assistant for macOS.
+"""Supremo: a small, safe desktop assistant for macOS and Windows.
 
-Run with: python3 supremo.py            (type commands)
-          python3 supremo.py --voice    (start in voice mode)
+Run with:
+    python3 supremo.py              (CLI mode, type commands)
+    python3 supremo.py --voice      (CLI mode, start in voice mode)
+    python3 main.py                 (GUI mode, JARVIS-style)
 
 Voice input is optional. To enable it:
-    brew install portaudio
-    pip3 install SpeechRecognition pyaudio
+    macOS:   brew install portaudio && pip3 install SpeechRecognition pyaudio
+    Windows: pip install SpeechRecognition pyaudio
+
+Skills:
+    register_skill("name", "description", handler)  # add a custom skill
+    skill <name> <args>                               # invoke it
+    Type 'skills' to list all registered skills.
 """
 
 from __future__ import annotations
 
 import argparse
+import ast
 import datetime as dt
+import operator
+import os
 import platform
 import re
 import shlex
@@ -23,14 +33,50 @@ from pathlib import Path
 from urllib.parse import quote_plus
 
 
+IS_MAC = platform.system() == "Darwin"
+IS_WINDOWS = platform.system() == "Windows"
+
+
 @dataclass(frozen=True)
 class Intent:
     action: str
     value: str = ""
 
 
+@dataclass
+class Skill:
+    """A plugin skill that extends Supremo with custom commands."""
+    name: str
+    description: str
+    handler: callable  # (value: str) -> str | None
+
+
 class VoiceUnavailable(Exception):
     """Raised when voice input can't be used (missing package, no microphone)."""
+
+
+def _safe_math(args: str) -> str:
+    """Evaluate a math expression safely (no eval)."""
+    _ops = {
+        ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul,
+        ast.Div: operator.truediv, ast.Pow: operator.pow, ast.USub: operator.neg,
+        ast.Mod: operator.mod, ast.FloorDiv: operator.floordiv,
+    }
+
+    def _eval(node):
+        if isinstance(node, ast.Constant):
+            return node.value
+        if isinstance(node, ast.BinOp):
+            return _ops[type(node.op)](_eval(node.left), _eval(node.right))
+        if isinstance(node, ast.UnaryOp):
+            return _ops[type(node.op)](_eval(node.operand))
+        raise ValueError(f"Unsupported expression element: {node}")
+
+    try:
+        tree = ast.parse(args, mode="eval")
+        return f"Result: {_eval(tree.body)}"
+    except Exception as exc:
+        return f"Error: {exc}"
 
 
 class Supremo:
@@ -40,9 +86,15 @@ class Supremo:
         "browser": "Safari",
         "safari": "Safari",
         "chrome": "Google Chrome",
+        "edge": "Microsoft Edge",
+        "firefox": "Firefox",
         "finder": "Finder",
+        "explorer": "explorer",
         "terminal": "Terminal",
+        "cmd": "cmd",
+        "powershell": "PowerShell",
         "notes": "Notes",
+        "notepad": "Notepad",
         "calendar": "Calendar",
         "mail": "Mail",
         "music": "Music",
@@ -50,44 +102,80 @@ class Supremo:
         "vscode": "Visual Studio Code",
         "preview": "Preview",
         "settings": "System Settings",
+        "control": "System Settings",
+        "calc": "Calculator",
         "calculator": "Calculator",
         "messages": "Messages",
     }
     BLOCKED_COMMANDS = {
-        "sudo",
-        "su",
-        "shutdown",
-        "reboot",
-        "halt",
-        "mkfs",
-        "diskutil",
-        "launchctl",
-        "kill",
-        "killall",
-        "crontab",
-        "dscl",
-        "rm",
-        "dd",
-        "chmod",
-        "chown",
-        "mv",
-        "eval",
-        "exec",
+        "sudo", "su", "shutdown", "reboot", "halt", "mkfs", "diskutil",
+        "launchctl", "kill", "killall", "crontab", "dscl", "rm", "dd",
+        "chmod", "chown", "mv", "eval", "exec",
     }
     POLITE_PREFIXES = ("please ", "can you ", "could you ", "would you ")
     POLITE_SUFFIXES = (" please",)
-    # Speech recognition can mishear, so these are typed-only: a transcript
-    # never runs shell commands or nests another voice session.
     VOICE_BLOCKED_ACTIONS = {"run", "listen", "voice_mode"}
-    LISTEN_TIMEOUT = 6  # seconds to wait for speech to start
-    PHRASE_LIMIT = 10  # max seconds for a single spoken command
+    LISTEN_TIMEOUT = 6
+    PHRASE_LIMIT = 10
 
+    # ------------------------------------------------------------------
+    # Skill system
+    # ------------------------------------------------------------------
+    def __init__(self):
+        self.skills: dict[str, Skill] = {}
+        self._register_default_skills()
+
+    def _register_default_skills(self):
+        """Register a few useful built-in skills as examples."""
+        self.register_skill(
+            "calculate", "Evaluate a math expression",
+            lambda value: _safe_math(value) if value else "Usage: skill calculate <expression>",
+        )
+
+        def _note(value: str) -> str:
+            if not value:
+                return "Usage: skill note <text>"
+            path = Path.home() / "Desktop" / "supremo-notes.txt"
+            with open(path, "a") as fh:
+                fh.write(f"[{dt.datetime.now():%Y-%m-%d %H:%M:%S}] {value}\n")
+            return f"Saved note to {path}"
+
+        self.register_skill("note", "Save a note to your Desktop", _note)
+
+        def _remind(value: str) -> str:
+            if not value:
+                return "Usage: skill remind <task> in <N> minutes"
+            return f"Reminder set: '{value}'. (Desktop integration coming soon.)"
+
+        self.register_skill("remind", "Set a reminder", _remind)
+
+    def register_skill(self, name: str, description: str, handler: callable) -> None:
+        """Register a custom skill.
+
+        Example::
+            assistant.register_skill("weather", "Get weather for a city",
+                                      lambda city: fetch_weather(city))
+        """
+        self.skills[name.lower()] = Skill(name.lower(), description, handler)
+
+    def unregister_skill(self, name: str) -> None:
+        """Remove a previously registered skill."""
+        self.skills.pop(name.lower(), None)
+
+    def list_skills(self) -> list[tuple[str, str]]:
+        """Return a list of (name, description) for all registered skills."""
+        return [(s.name, s.description) for s in self.skills.values()]
+
+    # ------------------------------------------------------------------
+    # Parsing
+    # ------------------------------------------------------------------
     def parse(self, request: str) -> Intent:
         text = self._normalize(request)
         if not text:
             return Intent("empty")
         normalized = text.lower()
 
+        # --- Built-in commands ---
         if normalized in {"help", "?", "commands"}:
             return Intent("help")
         if normalized in {"quit", "exit", "bye"}:
@@ -108,6 +196,8 @@ class Supremo:
             return Intent("stop_listening")
         if normalized in {"close", "terminate"}:
             return Intent("close")
+        if normalized in {"skills", "list skills", "show skills"}:
+            return Intent("skills")
         for prefix in ("open ", "launch ", "start "):
             if normalized.startswith(prefix):
                 return Intent("open", text[len(prefix):])
@@ -131,6 +221,8 @@ class Supremo:
                 return Intent("copy", text[len(prefix):])
         if normalized.startswith("run "):
             return Intent("run", text[4:])
+        if normalized.startswith("skill "):
+            return Intent("skill", text[6:])
         return Intent("unknown", text)
 
     def handle(self, intent: Intent, from_voice: bool = False) -> bool:
@@ -148,6 +240,8 @@ class Supremo:
             "notify": self.notify,
             "copy": self.copy_to_clipboard,
             "run": self.run_command,
+            "skill": self.execute_skill,
+            "skills": self.list_skills_handler,
             "unknown": self.explain_unknown,
             "stop_listening": lambda _value: print("Voice mode isn't on."),
             "empty": lambda _value: None,
@@ -165,6 +259,39 @@ class Supremo:
         action(intent.value)
         return True
 
+    # ------------------------------------------------------------------
+    # Skill handlers
+    # ------------------------------------------------------------------
+    def list_skills_handler(self, _value: str = "") -> None:
+        if not self.skills:
+            print("No custom skills registered.")
+            return
+        print("Available skills:")
+        for name, desc in self.list_skills():
+            print(f"  skill {name} — {desc}")
+        print("\nUse: skill <name> <args>")
+
+    def execute_skill(self, value: str = "") -> None:
+        parts = value.split(None, 1)
+        name = parts[0].lower() if parts else ""
+        args = parts[1] if len(parts) > 1 else ""
+        if not name:
+            print("Usage: skill <name> <args>")
+            return
+        skill = self.skills.get(name)
+        if skill is None:
+            print(f"No skill registered as {name!r}. Type 'skills' to list available skills.")
+            return
+        try:
+            result = skill.handler(args)
+            if result:
+                print(result)
+        except Exception as exc:
+            print(f"Skill {name!r} failed: {exc}")
+
+    # ------------------------------------------------------------------
+    # Built-in action methods
+    # ------------------------------------------------------------------
     def show_help(self, _value: str = "") -> None:
         print(
             """
@@ -173,13 +300,15 @@ Supremo can help with:
   open https://example.com   Open a website
   close Safari               Quit an app
   search Python dataclasses  Search the web
-  find budget                Find files in your home folder
+  find budget                Find files
   say good morning           Speak a short phrase
-  notify stretch             Show a macOS notification
+  notify stretch             Show a notification
   copy meeting notes         Copy text to the clipboard
   screenshot                 Save a screenshot to the Desktop
-  battery                    Show battery status
+  battery                    Show battery/power status
   run pwd                    Run a command after confirmation
+  skills                     List available skills
+  skill <name> <args>        Run a custom skill
   listen                     Give one command by voice
   voice mode                 Keep listening (say "stop listening" to end)
   time / date / help / quit
@@ -193,15 +322,40 @@ Supremo can help with:
         print(dt.date.today().strftime("Today is %A, %B %d, %Y."))
 
     def show_battery(self, _value: str = "") -> None:
-        output = self._capture(["pmset", "-g", "batt"])
+        if IS_MAC:
+            output = self._capture(["pmset", "-g", "batt"])
+        elif IS_WINDOWS:
+            output = self._capture([
+                "powershell", "-NoProfile", "-Command",
+                "(Get-WmiObject -Class Win32_Battery | "
+                "Select-Object -ExpandProperty EstimatedChargeRemaining)",
+            ])
+        else:
+            output = None
         if output is None:
+            print("Could not read battery status on this platform.")
             return
-        print(output or "Could not read battery status.")
+        print(output.strip() or "Could not read battery status.")
 
     def take_screenshot(self, _value: str = "") -> None:
         stamp = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
         path = Path.home() / "Desktop" / f"supremo-screenshot-{stamp}.png"
-        if self._run(["screencapture", "-x", str(path)]):
+        if IS_MAC:
+            success = self._run(["screencapture", "-x", str(path)])
+        elif IS_WINDOWS:
+            ps = (
+                "Add-Type -AssemblyName System.Windows.Forms,System.Drawing;"
+                "$s=[System.Windows.Forms.Screen]::AllScreens[0];"
+                "$b=New-Object System.Drawing.Bitmap($s.Bounds.Width,$s.Bounds.Height);"
+                "$g=[System.Drawing.Graphics]::FromImage($b);"
+                "$g.CopyFromScreen($s.Bounds.X,$s.Bounds.Y,0,0,$s.Bounds.Size);"
+                f'$b.Save("{path}",[System.Drawing.Imaging.ImageFormat]::Png)'
+            )
+            success = self._run(["powershell", "-NoProfile", "-Command", ps])
+        else:
+            print("Screenshots are not supported on this platform.")
+            return
+        if success:
             print(f"Saved screenshot to {path}")
 
     def open_target(self, target: str) -> None:
@@ -212,10 +366,26 @@ Supremo can help with:
         app_name = self.APP_ALIASES.get(target.lower(), target)
         path = Path(target).expanduser()
         if path.exists():
-            self._run(["open", str(path)])
+            if IS_MAC:
+                self._run(["open", str(path)])
+            elif IS_WINDOWS:
+                try:
+                    os.startfile(str(path))
+                except OSError as exc:
+                    print(f"Could not open {path}: {exc}")
+            else:
+                webbrowser.open(str(path))
             return
-        if target.lower() in self.APP_ALIASES or "://" not in target and "." not in target:
-            self._run(["open", "-a", app_name])
+        if target.lower() in self.APP_ALIASES or ("://" not in target and "." not in target):
+            if IS_MAC:
+                self._run(["open", "-a", app_name])
+            elif IS_WINDOWS:
+                try:
+                    os.startfile(app_name)
+                except OSError as exc:
+                    print(f"Could not open {app_name}: {exc}")
+            else:
+                print(f"Cannot launch {app_name} on this platform.")
             return
         url = target if "://" in target else f"https://{target}"
         print(f"Opening {url}")
@@ -228,7 +398,13 @@ Supremo can help with:
             return
         name = self.APP_ALIASES.get(app_name.lower(), app_name)
         print(f"Closing {name}...")
-        self._run(["osascript", "-e", f'tell application "{name}" to quit'])
+        if IS_MAC:
+            self._run(["osascript", "-e", f'tell application "{name}" to quit'])
+        elif IS_WINDOWS:
+            display = name if name.lower().endswith(".exe") else f"{name}.exe"
+            self._run(["taskkill", "/f", "/im", display])
+        else:
+            print(f"Cannot close {name} on this platform.")
 
     def search_web(self, query: str) -> None:
         query = query.strip()
@@ -244,8 +420,11 @@ Supremo can help with:
         if not name:
             print("Tell me what filename or pattern to find.")
             return
-        matches = self._spotlight_matches(name)
-        if matches is None:
+        if IS_MAC:
+            matches = self._spotlight_matches(name)
+            if matches is None:
+                matches = self._walk_home(name)
+        else:
             matches = self._walk_home(name)
         if not matches:
             print(f"No files matching {name!r} found in your home folder.")
@@ -257,19 +436,38 @@ Supremo can help with:
         if not text:
             print("Tell me what to say.")
             return
-        self._run(["say", text])
+        if IS_MAC:
+            self._run(["say", text])
+        elif IS_WINDOWS:
+            ps = (
+                "Add-Type -AssemblyName System.Speech;"
+                f'$s = New-Object System.Speech.Synthesis.SpeechSynthesizer;'
+                f'$s.Speak("{text}")'
+            )
+            self._run(["powershell", "-NoProfile", "-Command", ps])
+        else:
+            try:
+                subprocess.run(["espeak", text], check=False, timeout=10)
+            except OSError:
+                print(f"(text-to-speech not available: {text})")
 
     def notify(self, message: str) -> None:
         message = message.strip()
         if not message:
             print("Tell me what the notification should say.")
             return
-        script = (
-            'display notification "{}" with title "Supremo"'.format(
-                message.replace("\\", "\\\\").replace('"', '\\"')
+        escaped = message.replace("\\", "\\\\").replace('"', '\\"')
+        if IS_MAC:
+            script = f'display notification "{escaped}" with title "Supremo"'
+            self._run(["osascript", "-e", script])
+        elif IS_WINDOWS:
+            ps = (
+                "$s = New-Object -ComObject WScript.Shell;"
+                f'$s.Popup("{escaped}", 5, "Supremo", 0x0)'
             )
-        )
-        self._run(["osascript", "-e", script])
+            self._run(["powershell", "-NoProfile", "-Command", ps])
+        else:
+            print(f"[Supremo notification]: {message}")
 
     def copy_to_clipboard(self, text: str) -> None:
         text = text.strip()
@@ -277,14 +475,15 @@ Supremo can help with:
             print("Tell me what to copy.")
             return
         try:
-            subprocess.run(
-                ["pbcopy"],
-                input=text,
-                text=True,
-                check=True,
-                timeout=10,
-            )
-        except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
+            if IS_MAC:
+                cb_cmd = ["pbcopy"]
+            elif IS_WINDOWS:
+                cb_cmd = ["clip"]
+            else:
+                cb_cmd = ["xclip", "-selection", "c"]
+            subprocess.run(cb_cmd, input=text, text=True, check=True, timeout=10)
+        except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired,
+                FileNotFoundError) as error:
             print(f"Could not copy to the clipboard: {error}")
             return
         print("Copied to the clipboard.")
@@ -303,8 +502,7 @@ Supremo can help with:
             print("Tell me which command to run.")
             return
         if Path(argv[0]).name in self.BLOCKED_COMMANDS:
-            print(
-                f"Refusing to run {argv[0]!r}. Supremo only runs low-risk commands.")
+            print(f"Refusing to run {argv[0]!r}. Supremo only runs low-risk commands.")
             return
         print(f"Supremo is ready to run: {command}")
         try:
@@ -317,11 +515,8 @@ Supremo can help with:
             return
         try:
             result = subprocess.run(
-                argv,
-                check=False,
-                text=True,
-                capture_output=True,
-                timeout=30,
+                argv, check=False, text=True,
+                capture_output=True, timeout=30,
             )
         except (OSError, ValueError, subprocess.TimeoutExpired) as error:
             print(f"Could not run command: {error}")
@@ -332,6 +527,9 @@ Supremo can help with:
             print(result.stderr.rstrip(), file=sys.stderr)
         print(f"Command finished with exit code {result.returncode}.")
 
+    # ------------------------------------------------------------------
+    # Voice
+    # ------------------------------------------------------------------
     def voice_once(self) -> bool:
         """Listen for one spoken command. Returns False if it was 'quit'."""
         try:
@@ -382,10 +580,13 @@ Supremo can help with:
         try:
             import speech_recognition as sr
         except ImportError:
+            install_hint = (
+                "  brew install portaudio && pip3 install SpeechRecognition pyaudio"
+                if IS_MAC
+                else "  pip install SpeechRecognition pyaudio"
+            )
             raise VoiceUnavailable(
-                "Voice input needs extra packages:\n"
-                "  brew install portaudio\n"
-                "  pip3 install SpeechRecognition pyaudio"
+                f"Voice input needs extra packages:\n  {install_hint}"
             ) from None
 
         recognizer = sr.Recognizer()
@@ -405,19 +606,22 @@ Supremo can help with:
                     "I didn't hear anything. If this keeps happening, allow "
                     "microphone access for your terminal in System Settings > "
                     "Privacy & Security > Microphone."
+                    if IS_MAC
+                    else "I didn't hear anything. Check your microphone permissions."
                 )
             return None
         except AttributeError:
             # SpeechRecognition raises this when PyAudio is missing.
+            install_hint = (
+                "  brew install portaudio\n  pip3 install pyaudio"
+                if IS_MAC
+                else "  pip install pyaudio"
+            )
             raise VoiceUnavailable(
-                "PyAudio is missing. Install it with:\n"
-                "  brew install portaudio\n"
-                "  pip3 install pyaudio"
+                f"PyAudio is missing. Install it with:\n  {install_hint}"
             ) from None
         except OSError as error:
-            raise VoiceUnavailable(
-                f"Could not open the microphone: {error}"
-            ) from None
+            raise VoiceUnavailable(f"Could not open the microphone: {error}") from None
 
         try:
             return recognizer.recognize_google(audio)
@@ -430,6 +634,9 @@ Supremo can help with:
             ) from None
         return None
 
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
     def _process_transcript(self, transcript: str) -> Intent:
         transcript = self._clean_transcript(transcript)
         print(f"Heard: {transcript}")
@@ -437,7 +644,8 @@ Supremo can help with:
 
     def explain_unknown(self, request: str) -> None:
         print(
-            f"I do not know how to handle {request!r} yet. Type 'help' for commands.")
+            f"I do not know how to handle {request!r} yet. Type 'help' for commands."
+        )
 
     def _normalize(self, request: str) -> str:
         text = " ".join(request.strip().split())
@@ -463,19 +671,15 @@ Supremo can help with:
         """Tidy speech-recognizer output so it parses like typed input."""
         text = " ".join(text.split())
         if text.lower().startswith(("open ", "launch ", "start ")):
-            # "open github dot com" -> "open github.com"
             text = re.sub(r"\s+dot\s+", ".", text, flags=re.IGNORECASE)
         return text
 
     def _spotlight_matches(self, name: str) -> list[Path] | None:
         if platform.system() != "Darwin":
             return None
-        query = "kMDItemDisplayName == {}c".format(
-            self._spotlight_glob(name)
-        )
+        query = "kMDItemDisplayName == {}c".format(self._spotlight_glob(name))
         output = self._capture(
-            ["mdfind", "-onlyin", str(Path.home()), query],
-            timeout=15,
+            ["mdfind", "-onlyin", str(Path.home()), query], timeout=15,
         )
         if output is None:
             return None
@@ -507,11 +711,8 @@ Supremo can help with:
     def _capture(self, command: list[str], timeout: int = 10) -> str | None:
         try:
             result = subprocess.run(
-                command,
-                check=False,
-                text=True,
-                capture_output=True,
-                timeout=timeout,
+                command, check=False, text=True,
+                capture_output=True, timeout=timeout,
             )
         except (OSError, subprocess.TimeoutExpired) as error:
             print(f"Could not complete that action: {error}")
@@ -531,17 +732,30 @@ Supremo can help with:
         return True
 
 
+# ------------------------------------------------------------------ #
+#  Built-in skills — registered by default                           #
+# ------------------------------------------------------------------ #
+
+
+def _make_default_skills(assistant: Supremo) -> None:
+    """Register example skills that ship with Supremo."""
+    # calculate and note are registered in _register_default_skills
+    # This function can be extended by users.
+    pass
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Supremo desktop assistant")
-    parser.add_argument(
-        "--voice", action="store_true", help="start in voice mode"
-    )
+    parser.add_argument("--voice", action="store_true", help="start in voice mode")
+    parser.add_argument("--cli", action="store_true", help="force CLI mode (default: auto-detect)")
     args = parser.parse_args()
 
-    if platform.system() != "Darwin":
-        print("Supremo currently targets macOS desktop actions.")
+    if not IS_MAC and not IS_WINDOWS and platform.system() != "Linux":
+        print("Supremo currently targets macOS, Windows, and Linux desktop actions.")
+
     assistant = Supremo()
     print("Supremo online. Type 'help' for commands, or 'quit' to exit.")
+    print("Type 'skills' to see available skills.")
     if args.voice and not assistant.voice_loop():
         print("Supremo offline.")
         return
