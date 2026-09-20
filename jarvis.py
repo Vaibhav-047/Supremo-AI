@@ -563,7 +563,7 @@ class JarvisApp:
         sample_rate = 16000
         audio_chunks = []
 
-        def callback(indata, frames, status):
+        def callback(indata, frames, time, status):
             if status:
                 import sys as _sys
                 print(f"Audio: {status}", file=_sys.stderr)
