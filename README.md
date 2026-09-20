@@ -46,7 +46,8 @@ python3 supremo.py --voice
 | `copy <text>` | Copy text to the clipboard |
 | `run <command>` | Run a shell command (requires confirmation) |
 | `skills` | List all available skills |
-| `skill <name> <args>` | Run a custom skill |
+| `skill <name> <args>`        | Run a custom skill |
+| `chatgpt <query>`            | Ask ChatGPT (needs `OPENAI_API_KEY`) |
 | `listen` | Give one command by voice |
 | `voice mode` | Keep listening until "stop listening" |
 | `quit` | Exit |
@@ -59,6 +60,8 @@ Supremo supports a **skills system** — custom commands that extend the assista
 |-------|-------|-------------|
 | `calculate` | `skill calculate 2 + 2` | Safely evaluate math expressions |
 | `note` | `skill note buy groceries` | Save notes to your Desktop |
+| `remind` | `skill remind <task>` | Set a reminder |
+| `chatgpt` | `skill chatgpt <question>` | Ask ChatGPT (needs `OPENAI_API_KEY`) |
 
 To add your own skill, use `register_skill()`:
 

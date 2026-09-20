@@ -149,6 +149,13 @@ class Supremo:
 
         self.register_skill("remind", "Set a reminder", _remind)
 
+        def _chatgpt(value: str) -> str:
+            if not value:
+                return "Usage: chatgpt <question>"
+            return Supremo._chatgpt_request(value)
+
+        self.register_skill("chatgpt", "Ask ChatGPT a question (needs OPENAI_API_KEY)", _chatgpt)
+
     def register_skill(self, name: str, description: str, handler: callable) -> None:
         """Register a custom skill.
 
@@ -221,6 +228,10 @@ class Supremo:
                 return Intent("copy", text[len(prefix):])
         if normalized.startswith("run "):
             return Intent("run", text[4:])
+        if normalized.startswith("chatgpt "):
+            return Intent("chatgpt", text[8:])
+        if normalized.startswith("ask chatgpt "):
+            return Intent("chatgpt", text[12:])
         if normalized.startswith("skill "):
             return Intent("skill", text[6:])
         return Intent("unknown", text)
@@ -240,6 +251,7 @@ class Supremo:
             "notify": self.notify,
             "copy": self.copy_to_clipboard,
             "run": self.run_command,
+            "chatgpt": self._handle_chatgpt,
             "skill": self.execute_skill,
             "skills": self.list_skills_handler,
             "unknown": self.explain_unknown,
@@ -309,6 +321,7 @@ Supremo can help with:
   run pwd                    Run a command after confirmation
   skills                     List available skills
   skill <name> <args>        Run a custom skill
+  chatgpt <query>            Ask ChatGPT (needs OPENAI_API_KEY)
   listen                     Give one command by voice
   voice mode                 Keep listening (say "stop listening" to end)
   time / date / help / quit
@@ -487,6 +500,64 @@ Supremo can help with:
             print(f"Could not copy to the clipboard: {error}")
             return
         print("Copied to the clipboard.")
+
+    @staticmethod
+    def _chatgpt_request(query: str) -> str:
+        """Send a query to the ChatGPT API and return the response.
+
+        Requires OPENAI_API_KEY environment variable or a key file at
+        ~/.config/supremo/openai.key
+        """
+        api_key = os.environ.get("OPENAI_API_KEY", "")
+        key_path = Path.home() / ".config" / "supremo" / "openai.key"
+        if not api_key and key_path.exists():
+            api_key = key_path.read_text().strip()
+
+        if not api_key:
+            return ("OPENAI_API_KEY not set. Get one at https://platform.openai.com/api-keys\n"
+                    f"Save to {key_path} or set as environment variable.")
+
+        try:
+            import json
+            import urllib.request
+            import urllib.error
+
+            data = json.dumps({
+                "model": "gpt-3.5-turbo",
+                "messages": [{"role": "user", "content": query}],
+                "max_tokens": 500,
+                "temperature": 0.7,
+            }).encode("utf-8")
+
+            req = urllib.request.Request(
+                "https://api.openai.com/v1/chat/completions",
+                data=data,
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                method="POST",
+            )
+
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                result = json.loads(resp.read().decode("utf-8"))
+                return result["choices"][0]["message"]["content"].strip()
+        except urllib.error.HTTPError as e:
+            return f"ChatGPT API error: {e.code} {e.reason}"
+        except urllib.error.URLError as e:
+            return f"Network error: {e.reason}"
+        except Exception as e:
+            return f"ChatGPT request failed: {e}"
+
+    def _handle_chatgpt(self, query: str) -> None:
+        """Handle a 'chatgpt <query>' command (direct, not via skill)."""
+        query = query.strip() if query else ""
+        if not query:
+            print("Tell me what to ask ChatGPT.")
+            return
+        print(f"Asking ChatGPT: {query}")
+        response = self._chatgpt_request(query)
+        print(response)
 
     def run_command(self, command: str) -> None:
         command = command.strip()

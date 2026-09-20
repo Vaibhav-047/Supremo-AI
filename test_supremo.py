@@ -1,5 +1,6 @@
 """Unit tests for Supremo — the desktop management AI."""
 
+import os
 import unittest
 from unittest.mock import patch, MagicMock
 from pathlib import Path
@@ -129,6 +130,26 @@ class SupremoTests(unittest.TestCase):
             self.assistant.handle(Intent("run", "echo test"), from_voice=False)
 
     # --- Error handling tests ---
+
+    def test_parse_chatgpt_command(self):
+        """'chatgpt <query>' should return a chatgpt intent."""
+        self.assertEqual(
+            self.assistant.parse("chatgpt what is AI"),
+            Intent("chatgpt", "what is AI"),
+        )
+
+    def test_parse_ask_chatgpt_command(self):
+        """'ask chatgpt <query>' should return a chatgpt intent."""
+        self.assertEqual(
+            self.assistant.parse("ask chatgpt what is Python"),
+            Intent("chatgpt", "what is Python"),
+        )
+
+    def test_chatgpt_without_api_key(self):
+        """chatgpt should return a helpful message when no API key is set."""
+        os.environ.pop("OPENAI_API_KEY", None)
+        result = self.assistant._chatgpt_request("hello")
+        self.assertIn("OPENAI_API_KEY", result)
 
     def test_eof_during_run_confirmation_exits_gracefully(self):
         """EOFError at the run confirmation prompt shouldn't crash."""

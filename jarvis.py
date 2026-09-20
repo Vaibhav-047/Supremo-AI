@@ -82,9 +82,9 @@ class VoiceVisualizer(tk.Canvas):
     def _animate(self):
         if not self.listening:
             # Reset bars to baseline
-            for b in self.bars:
-                self.coords(b, self.bars.index(b) * self.bar_w, 26,
-                            (self.bars.index(b) + 1) * self.bar_w - 1, 26)
+            for i, bar in enumerate(self.bars):
+                self.coords(bar, i * self.bar_w, 26,
+                            (i + 1) * self.bar_w - 1, 26)
             return
         self.phase += 1
         for i, bar in enumerate(self.bars):
@@ -337,6 +337,7 @@ class JarvisApp:
                          "  • search Python dataclasses\n"
                          "  • screenshot\n"
                          "  • battery / time / date\n"
+                         "  • chatgpt what is artificial intelligence\n"
                          "  • skills (list available skills)\n"
                          "  • skill calculate 2 + 2\n"
                          "  • skill note buy groceries\n"

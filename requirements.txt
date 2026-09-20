@@ -7,6 +7,9 @@
 SpeechRecognition>=3.10.0
 pyaudio>=0.2.14
 
+# ChatGPT skill (optional — requires OPENAI_API_KEY):
+# openai>=1.0.0
+
 # Windows extras (optional, for better TTS on Windows):
 # pyttsx3>=2.90
 
