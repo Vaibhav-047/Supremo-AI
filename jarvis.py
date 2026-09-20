@@ -119,6 +119,7 @@ class JarvisApp:
         self.root = root
         self.assistant = Supremo()
         self.voice_active = False
+        self._voice_error = ""
         self.voice_enabled = self._check_voice_available()
         self._drag_start = {"x": 0, "y": 0}
         self.setup_window_effects()
@@ -136,7 +137,8 @@ class JarvisApp:
         else:
             self.add_message("system", "Supremo",
                              "Voice mode unavailable.\n"
-                             "Install: pip install SpeechRecognition pyaudio")
+                             "Install: pip install SpeechRecognition pyaudio\n"
+                             f"  ({self._voice_error})")
 
         self.speak("Supremo online. How can I help you?")
 
@@ -144,10 +146,20 @@ class JarvisApp:
     # Setup
     # ------------------------------------------------------------------
     def _check_voice_available(self):
+        """Check if voice packages are installed and importable."""
         try:
             import speech_recognition  # noqa: F401
+            try:
+                import pyaudio  # noqa: F401
+            except Exception as e:
+                self._voice_error = f"pyaudio: {e}"
+                return False
             return True
-        except ImportError:
+        except ImportError as e:
+            self._voice_error = f"speech_recognition: {e}"
+            return False
+        except Exception as e:
+            self._voice_error = f"unexpected: {type(e).__name__}: {e}"
             return False
 
     def setup_window_effects(self):
@@ -410,7 +422,8 @@ class JarvisApp:
         """Manually trigger one voice listening cycle."""
         if not self.voice_enabled:
             self.add_message("system", "Supremo",
-                             "Voice mode requires: pip install SpeechRecognition pyaudio")
+                             f"Voice mode unavailable: {self._voice_error}\n"
+                             "Install: pip install SpeechRecognition pyaudio")
             return
         self.voice_active = True
         self._update_voice_ui()
