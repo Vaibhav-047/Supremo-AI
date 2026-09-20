@@ -20,15 +20,14 @@ else
     PYTHON="python3"
 fi
 
-# On Apple Silicon, ensure Python matches system architecture to avoid
-# arm64/x86_64 mismatch with compiled C extensions (e.g., pyaudio, audioop-lts)
+# On Apple Silicon, force native arm64 to match installed packages.
+# Without this, Python may launch under Rosetta (x86_64) and fail to load
+# arm64 C extensions like pyaudio/audioop-lts.
 if [ "$SYS_ARCH" = "arm64" ]; then
     PY_ARCH=$("$PYTHON" -c "import platform; print(platform.machine())" 2>/dev/null)
-    if [ "$PY_ARCH" = "x86_64" ] && [ -x "/opt/homebrew/bin/python3" ]; then
-        # Current Python is x86_64 under Rosetta; switch to arm64 Homebrew Python
-        if [ "$("/opt/homebrew/bin/python3" -c "import platform; print(platform.machine())" 2>/dev/null)" = "arm64" ]; then
-            PYTHON="/opt/homebrew/bin/python3"
-        fi
+    if [ "$PY_ARCH" = "x86_64" ]; then
+        # Python is running under Rosetta; force native arm64
+        exec arch -arm64 "$PYTHON" "$RESOURCES_DIR/main.py" "$@"
     fi
 fi
 
