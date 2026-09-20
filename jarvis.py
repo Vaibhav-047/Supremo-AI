@@ -126,16 +126,14 @@ class JarvisApp:
         self.setup_window_effects()
         self.setup_ui()
 
-        # Auto-start voice mode on launch
+        # Don't auto-start voice mode — let user initiate via:
+        #   Space key (push-to-talk) or 🎙️ button (continuous mode)
         if self.voice_enabled:
             self.add_message("system", "Supremo",
-                             "Voice mode auto-started. Say 'stop listening' to disable.\n"
-                             "Hold SPACE for push-to-talk mode.")
-            self.status_var.set("🔊 Listening...")
+                             "Ready! Hold SPACE to speak, or click 🎙️ for continuous mode.\n"
+                             "Type commands for voice response anytime.")
+            self._reset_status()
             self.voice_btn.configure(fg=self.MIC_ON)
-            self.viz.set_listening(True)
-            self._animate_logo()
-            threading.Thread(target=self._voice_loop, daemon=True).start()
         else:
             self.add_message("system", "Supremo",
                              "Voice mode unavailable.\n"
@@ -195,23 +193,16 @@ class JarvisApp:
         if IS_MAC:
             try:
                 import sounddevice as sd
-                import numpy as np
-                # Query devices for any with input channels
                 devices = sd.query_devices()
                 has_input = any(
                     d.get("max_input_channels", 0) > 0 for d in devices
                 )
-                # Also try opening a brief stream to test access
                 if has_input:
+                    # Open stream to verify mic permission — if it raises,
+                    # the OS denied access
                     with sd.InputStream(samplerate=16000, channels=1,
-                                        dtype="int16") as stream:
-                        chunk, _ = stream.read(int(16000 * 0.1))
-                        if np.abs(chunk).mean() == 0:
-                            self._voice_error = (
-                                "Microphone found but no audio. Check System "
-                                "Settings > Privacy & Security > Microphone."
-                            )
-                            return False
+                                        dtype="int16"):
+                        pass  # Just verify it opens, don't read audio
                 if not has_input:
                     self._voice_error = (
                         "No microphone input device found.\n"
@@ -548,9 +539,11 @@ class JarvisApp:
     # Push-to-Talk (hold Space key to listen)
     # ------------------------------------------------------------------
     def _on_ptt_press(self, event):
-        if not self.voice_enabled or self.voice_active:
+        # Don't trigger PTT when typing in the input field
+        focused = self.root.focus_get()
+        if isinstance(focused, tk.Entry):
             return
-        if self.ptt_active:
+        if not self.voice_enabled or self.ptt_active:
             return
         self.ptt_active = True
         self.voice_active = True
@@ -949,8 +942,8 @@ def main():
     root.configure(bg=JarvisApp.GRADIENT_BOTTOM)
     root.option_add("*tearOff", tk.FALSE)
     root.bind("<Escape>", lambda e: root.quit())
-    root.bind("<space>", app._on_ptt_press)
-    root.bind("<KeyRelease-space>", app._on_ptt_release)
+    root.bind_all("<space>", app._on_ptt_press)
+    root.bind_all("<KeyRelease-space>", app._on_ptt_release)
 
     # Antigravity: fade-in animation
     root.wm_attributes("-alpha", 0.0)
