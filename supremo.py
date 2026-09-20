@@ -211,6 +211,18 @@ class Supremo:
         for prefix in ("close ", "terminate "):
             if normalized.startswith(prefix):
                 return Intent("close", text[len(prefix):])
+        # ChatGPT queries — must come before "search" handler to avoid collision
+        if normalized.startswith("chatgpt "):
+            return Intent("chatgpt", text[8:])
+        if normalized.startswith("ask chatgpt about "):
+            return Intent("chatgpt", text[18:])
+        if normalized.startswith("ask chatgpt "):
+            return Intent("chatgpt", text[12:])
+        for prefix in ("search ", "google ", "look up "):
+            if normalized.startswith(prefix) and normalized.endswith(" on chatgpt"):
+                return Intent("chatgpt", text[len(prefix):-11])
+        if normalized.startswith("search chatgpt for "):
+            return Intent("chatgpt", text[19:])
         for prefix in ("search ", "google ", "look up "):
             if normalized.startswith(prefix):
                 return Intent("search", text[len(prefix):])
@@ -228,10 +240,6 @@ class Supremo:
                 return Intent("copy", text[len(prefix):])
         if normalized.startswith("run "):
             return Intent("run", text[4:])
-        if normalized.startswith("chatgpt "):
-            return Intent("chatgpt", text[8:])
-        if normalized.startswith("ask chatgpt "):
-            return Intent("chatgpt", text[12:])
         if normalized.startswith("skill "):
             return Intent("skill", text[6:])
         return Intent("unknown", text)
@@ -322,6 +330,7 @@ Supremo can help with:
   skills                     List available skills
   skill <name> <args>        Run a custom skill
   chatgpt <query>            Ask ChatGPT (needs OPENAI_API_KEY)
+  search <X> on chatgpt      Search ChatGPT for X
   listen                     Give one command by voice
   voice mode                 Keep listening (say "stop listening" to end)
   time / date / help / quit

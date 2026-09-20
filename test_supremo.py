@@ -151,6 +151,41 @@ class SupremoTests(unittest.TestCase):
         result = self.assistant._chatgpt_request("hello")
         self.assertIn("OPENAI_API_KEY", result)
 
+    def test_parse_search_on_chatgpt(self):
+        """'search X on chatgpt' should return a chatgpt intent with X as query."""
+        self.assertEqual(
+            self.assistant.parse("search what is AI on chatgpt"),
+            Intent("chatgpt", "what is AI"),
+        )
+
+    def test_parse_google_on_chatgpt(self):
+        """'google X on chatgpt' should return a chatgpt intent with X as query."""
+        self.assertEqual(
+            self.assistant.parse("google meaning of life on chatgpt"),
+            Intent("chatgpt", "meaning of life"),
+        )
+
+    def test_parse_look_up_on_chatgpt(self):
+        """'look up X on chatgpt' should return a chatgpt intent with X as query."""
+        self.assertEqual(
+            self.assistant.parse("look up python on chatgpt"),
+            Intent("chatgpt", "python"),
+        )
+
+    def test_parse_ask_chatgpt_about(self):
+        """'ask chatgpt about X' should strip 'about' and return X as query."""
+        self.assertEqual(
+            self.assistant.parse("ask chatgpt about machine learning"),
+            Intent("chatgpt", "machine learning"),
+        )
+
+    def test_parse_search_chatgpt_for(self):
+        """'search chatgpt for X' should return a chatgpt intent with X as query."""
+        self.assertEqual(
+            self.assistant.parse("search chatgpt for quantum computing"),
+            Intent("chatgpt", "quantum computing"),
+        )
+
     def test_eof_during_run_confirmation_exits_gracefully(self):
         """EOFError at the run confirmation prompt shouldn't crash."""
         with patch("builtins.input", side_effect=EOFError):
