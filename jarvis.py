@@ -296,6 +296,17 @@ class JarvisApp:
             command=self.start_voice_once, cursor="hand2")
         listen_icon.pack(side="left", padx=(0, 6))
 
+        # Fix Voice button (shows when voice is unavailable)
+        self.fix_btn = tk.Button(
+            right_frame, text="🔧", font=_get_font(12),
+            bg=self.PANEL, fg=self.TEXT,
+            activebackground=self.GLOW, activeforeground=self.BG,
+            relief="flat", borderwidth=0, width=3, height=1,
+            command=self._fix_voice, cursor="hand2")
+        self.fix_btn.pack(side="left", padx=(0, 6))
+        if self.voice_enabled:
+            self.fix_btn.pack_forget()
+
         close_btn = tk.Button(
             header, text="✕", font=_get_font(14, "bold"),
             fg="#f87171", bg=self.PANEL,
@@ -414,7 +425,11 @@ class JarvisApp:
                          "  • skills (list available skills)\n"
                          "  • skill calculate 2 + 2\n"
                          "  • skill note buy groceries\n"
-                         "Type 'help' for the full command list.")
+                         "Type 'help' for the full command list.\n"
+                         "\n"
+                         "🎙️ Voice input" if self.voice_enabled
+                         else "⌨️ Typing works — type a command, I'll respond by voice"
+                         + (" (click 🔧 to fix voice input)" if not self.voice_enabled else ""))
 
     def _draw_logo(self, pulse=False):
         """Draw the Supremo logo dot with glow effect."""
@@ -514,6 +529,84 @@ class JarvisApp:
         self.voice_active = True
         self._update_voice_ui()
         threading.Thread(target=self._voice_loop, daemon=True).start()
+
+    # ------------------------------------------------------------------
+    # Voice fix
+    # ------------------------------------------------------------------
+    def _fix_voice(self):
+        """Auto-detect Python architecture and install packages correctly."""
+        self.status_var.set("Fixing voice input...")
+        threading.Thread(target=self._do_fix_voice, daemon=True).start()
+
+    def _do_fix_voice(self):
+        """Run the fix command in the correct architecture."""
+        import platform, subprocess, sys
+
+        is_mac = platform.system() == "Darwin"
+        python = sys.executable
+        current_arch = platform.machine()
+        messages = []
+
+        if is_mac:
+            for target in ["arm64", "x86_64"]:
+                try:
+                    cmd = ["arch", f"-{target}", python, "-m", "pip", "install",
+                           "SpeechRecognition", "pyaudio"]
+                    result = subprocess.run(cmd, capture_output=True,
+                                            text=True, timeout=60)
+                    ok = result.returncode == 0
+                    messages.append(f"arch -{target}: {'OK' if ok else 'FAILED'}")
+                except Exception as e:
+                    messages.append(f"arch -{target}: {e}")
+
+            for target in ["arm64", "x86_64"]:
+                try:
+                    result = subprocess.run(
+                        ["arch", f"-{target}", python, "-c",
+                         "import speech_recognition, pyaudio; print('OK')"],
+                        capture_output=True, text=True, timeout=15)
+                    if result.returncode == 0 and "OK" in result.stdout:
+                        self.root.after(0, self.add_message, "system", "Supremo",
+                                        f"Voice fix succeeded (arch -{target})!"
+                                        + "\n".join(messages))
+                        self.root.after(2000, self._reopen_in_arch, target)
+                        return
+                except Exception as e:
+                    messages.append(f"arch -{target}: {e}")
+
+            self.root.after(0, self.add_message, "system", "Supremo",
+                            "Voice fix attempted. If still broken, run manually:\n"
+                            "  arch -arm64 python3 -m pip install SpeechRecognition pyaudio\n"
+                            "  arch -x86_64 python3 -m pip install SpeechRecognition pyaudio\n"
+                            + "\n".join(messages))
+        else:
+            try:
+                result = subprocess.run(
+                    [sys.executable, "-m", "pip", "install",
+                     "SpeechRecognition", "pyaudio"],
+                    capture_output=True, text=True, timeout=60)
+                if result.returncode == 0:
+                    self.root.after(0, self.add_message, "system", "Supremo",
+                                    "Packages installed. Restart Supremo.")
+                else:
+                    self.root.after(0, self.add_message, "system", "Supremo",
+                                    "Install failed. Run: pip install SpeechRecognition pyaudio")
+            except Exception as e:
+                self.root.after(0, self.add_message, "system", "Supremo",
+                                f"Install error: {e}")
+
+        self.root.after(0, self._reset_status)
+
+    def _reopen_in_arch(self, target_arch):
+        """Re-launch the app using the specified architecture."""
+        import os, subprocess, sys
+        python = sys.executable
+        app_path = os.path.abspath(sys.argv[0])
+        subprocess.Popen(
+            ["arch", f"-{target_arch}", python, app_path] + sys.argv[1:],
+            cwd=os.path.dirname(app_path) or ".",
+        )
+        self.root.quit()
 
     def _voice_loop(self):
         """Continuous voice listening loop (auto mode)."""
@@ -694,8 +787,10 @@ class JarvisApp:
     def _reset_status(self):
         if self.voice_active:
             self.status_var.set("🔊 Listening...")
-        else:
+        elif self.voice_enabled:
             self.status_var.set("Ready — type or click 🎙️")
+        else:
+            self.status_var.set("Voice unavailable — type to chat (🔧 to fix)")
 
     # ------------------------------------------------------------------
     # TTS
