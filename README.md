@@ -1,12 +1,15 @@
 # Supremo — Desktop Management AI
 
-A small, safe desktop assistant for macOS that you talk to from the terminal.
+A small, safe desktop assistant for macOS that you talk to from the terminal or GUI.
 
 ## Quick Start
 
 ```bash
-# No external dependencies required for basic use
-python3 supremo.py      # or: python3 main.py
+# GUI mode (JARVIS-style dark window) — default
+python3 main.py        # or: python3 jarvis.py
+
+# CLI mode (terminal)
+python3 main.py --cli  # or: python3 supremo.py
 
 # Start in voice mode (requires speech packages)
 python3 supremo.py --voice
@@ -51,9 +54,10 @@ pip3 install SpeechRecognition pyaudio
 
 | File | Purpose |
 |------|---------|
-| `supremo.py` | Main assistant — parser, router, and all desktop actions |
-| `test_supremo.py` | Unit tests for parsing and command handling |
-| `main.py` | Entry point — runs Supremo from the terminal |
+| `supremo.py` | Core assistant — parser, router, and all desktop actions |
+| `jarvis.py` | JARVIS-style GUI frontend (Tkinter, dark theme) |
+| `test_supremo.py` | Unit tests for parsing, safety, and command handling |
+| `main.py` | Entry point — launches GUI by default, CLI with `--cli` |
 | `config.py` | Configuration — tweak app settings without editing code |
 | `requirements.txt` | Python dependencies for voice mode |
 
