@@ -97,21 +97,24 @@ class VoiceVisualizer(tk.Canvas):
 class JarvisApp:
     """JARVIS-style GUI for the Supremo desktop assistant."""
 
-    # --- Antigravity theme ---
-    BG = "#0a0f17"
-    PANEL = "#161d2a"
-    BORDER = "#2d3748"
-    TEXT = "#e5e7eb"
-    USER_MSG = "#60a5fa"
-    AI_MSG = "#34d399"
-    INPUT_BG = "#1e293b"
-    GLOW = "#34d399"
-    GLOW_HOVER = "#22c55e"
-    TIMESTAMP = "#64748b"
+    # --- Dark-mode design system (inspired by Linear, VoltAgent) ---
+    BG = "#0a0f17"                    # canvas — near-black
+    PANEL = "#161d2a"                # surface — one step lighter
+    BORDER = "#2d3748"               # whisper border
+    BORDER_HOVER = "#4a5568"         # hover border
+    TEXT = "#f7f8f8"                 # snow white (not pure #fff)
+    TEXT_SECONDARY = "#8b949e"       # steel slate
+    TEXT_MUTED = "#62666d"           # quaternary
+    USER_MSG = "#60a5fa"             # blue (user messages)
+    AI_MSG = "#34d399"               # emerald (AI responses)
+    INPUT_BG = "#1e293b"             # input surface
+    GLOW = "#34d399"                 # emerald glow
+    GLOW_HOVER = "#22c55e"           # emerald hover
+    TIMESTAMP = "#62666d"
     WARNING = "#f59e0b"
     ERROR = "#ef4444"
     MIC_ON = "#34d399"
-    MIC_OFF = "#64748b"
+    MIC_OFF = "#62666d"
     GRADIENT_TOP = "#0f172a"
     GRADIENT_BOTTOM = "#0a0f17"
 
@@ -268,7 +271,7 @@ class JarvisApp:
         self.dot.pack(side="left", padx=(0, 10))
         self._draw_logo()
 
-        name_label = tk.Label(header_left, text="SUPEREMO",
+        name_label = tk.Label(header_left, text="SUPREMO",
                               font=_get_font(15, "bold"),
                               fg=self.USER_MSG, bg=self.PANEL)
         name_label.pack(side="left")
@@ -296,7 +299,7 @@ class JarvisApp:
 
         listen_icon = tk.Button(
             right_frame, text="🔊", font=_get_font(12),
-            bg=self.PANEL, fg=self.TEXT,
+            bg=self.PANEL, fg=self.TEXT_SECONDARY,
             activebackground=self.GLOW, activeforeground=self.BG,
             relief="flat", borderwidth=0, width=3, height=1,
             command=self.start_voice_once, cursor="hand2")
@@ -305,7 +308,7 @@ class JarvisApp:
         # Fix Voice button (shows when voice is unavailable)
         self.fix_btn = tk.Button(
             right_frame, text="🔧", font=_get_font(12),
-            bg=self.PANEL, fg=self.TEXT,
+            bg=self.PANEL, fg=self.TEXT_SECONDARY,
             activebackground=self.GLOW, activeforeground=self.BG,
             relief="flat", borderwidth=0, width=3, height=1,
             command=self._fix_voice, cursor="hand2")
@@ -359,12 +362,12 @@ class JarvisApp:
 
         skills_title = tk.Label(self.skills_frame, text="SKILLS",
                                 font=_get_font(9, "bold"),
-                                fg=self.USER_MSG, bg=self.PANEL)
+                                fg=self.AI_MSG, bg=self.PANEL)
         skills_title.pack(pady=(14, 8), padx=12, anchor="w")
 
         self.skills_list = tk.Listbox(
             self.skills_frame, font=_get_font(9), bg=self.PANEL,
-            fg=self.TEXT, relief="flat", borderwidth=0, highlightthickness=0,
+            fg=self.TEXT_SECONDARY, relief="flat", borderwidth=0, highlightthickness=0,
             activestyle="none", selectbackground="#33415b",
             selectforeground=self.TEXT, height=20)
         self.skills_list.pack(fill="both", expand=True, padx=12, pady=(0, 14))
@@ -381,20 +384,21 @@ class JarvisApp:
 
         self.input_field = tk.Entry(
             input_container, font=_get_font(12), bg=self.INPUT_BG,
-            fg=self.TEXT, insertbackground=self.USER_MSG,
-            relief="flat", borderwidth=0, highlightthickness=0, width=1)
+            fg=self.TEXT, insertbackground=self.AI_MSG,
+            relief="flat", borderwidth=0, highlightthickness=0, width=1,
+            disabledbackground=self.INPUT_BG, disabledforeground=self.TEXT_MUTED)
         self.input_field.pack(fill="x", padx=12, pady=10)
         self.input_field.bind("<Return>", self.on_enter)
         # Don't auto-focus the input field — let Space key trigger PTT when
         # the user clicks window background. Click input field to type.
 
-        # Button row
+        # Button row — ghost buttons with subtle hover
         btn_row = tk.Frame(input_frame, bg=self.GRADIENT_BOTTOM)
         btn_row.pack(side="right", padx=(8, 0))
 
         voice_input_btn = tk.Button(
             btn_row, text="🎙️", font=_get_font(12),
-            bg=self.PANEL, fg=self.TEXT,
+            bg=self.PANEL, fg=self.MIC_ON if self.voice_enabled else self.MIC_OFF,
             activebackground=self.GLOW, activeforeground=self.BG,
             relief="flat", borderwidth=0, width=4, height=1,
             command=self.start_voice_once, cursor="hand2")
@@ -402,16 +406,18 @@ class JarvisApp:
 
         send_btn = tk.Button(
             btn_row, text="SEND", font=_get_font(12, "bold"),
-            bg=self.USER_MSG, fg=self.BG,
-            activebackground=self.GLOW, activeforeground=self.BG,
+            bg=self.AI_MSG, fg=self.BG,
+            activebackground=self.GLOW_HOVER, activeforeground=self.BG,
             relief="flat", borderwidth=0, padx=16, pady=6,
             command=self.on_send, cursor="hand2")
         send_btn.pack(side="left")
 
-        send_btn.bind("<Enter>", lambda e: send_btn.configure(bg=self.GLOW_HOVER))
-        send_btn.bind("<Leave>", lambda e: send_btn.configure(bg=self.USER_MSG))
+        # Hover states — subtle opacity shifts
+        send_btn.bind("<Enter>", lambda e: send_btn.configure(bg=self.GLOW_HOVER, fg=self.BG))
+        send_btn.bind("<Leave>", lambda e: send_btn.configure(bg=self.AI_MSG, fg=self.BG))
         voice_input_btn.bind("<Enter>", lambda e: voice_input_btn.configure(fg=self.GLOW))
-        voice_input_btn.bind("<Leave>", lambda e: voice_input_btn.configure(fg=self.TEXT))
+        voice_input_btn.bind("<Leave>", lambda e: voice_input_btn.configure(
+            fg=self.MIC_ON if self.voice_enabled else self.MIC_OFF))
 
         # Status bar
         self.status_var = tk.StringVar()
@@ -541,34 +547,20 @@ class JarvisApp:
     # Push-to-Talk (hold Space key to listen)
     # ------------------------------------------------------------------
     def _on_ptt_press(self, event):
-        # Log to debug file for troubleshooting
-        import os as _os
-        with open("/tmp/supremo_debug.log", "a") as _f:
-            _f.write(f"PTT_PRESS: focused={self.root.focus_get()}, voice_enabled={self.voice_enabled}, ptt_active={self.ptt_active}\n")
         # Don't trigger PTT when typing in the input field
         focused = self.root.focus_get()
         if isinstance(focused, tk.Entry):
-            with open("/tmp/supremo_debug.log", "a") as _f:
-                _f.write("PTT_PRESS: skipped (input field focused)\n")
             return
         if not self.voice_enabled or self.ptt_active:
-            with open("/tmp/supremo_debug.log", "a") as _f:
-                _f.write(f"PTT_PRESS: skipped (voice_enabled={self.voice_enabled}, ptt_active={self.ptt_active})\n")
             return
         self.ptt_active = True
         self.voice_active = True
         self._update_voice_ui()
-        with open("/tmp/supremo_debug.log", "a") as _f:
-            _f.write("PTT_PRESS: starting recording thread\n")
         threading.Thread(target=self._ptt_listen, daemon=True).start()
 
     def _on_ptt_release(self, event):
-        with open("/tmp/supremo_debug.log", "a") as _f:
-            _f.write(f"PTT_RELEASE: ptt_active={self.ptt_active}\n")
         if self.ptt_active:
             self.ptt_active = False
-            with open("/tmp/supremo_debug.log", "a") as _f:
-                _f.write("PTT_RELEASE: stopping recording\n")
 
     def _ptt_listen(self):
         """Record audio via sounddevice while PTT key is held, then transcribe."""
@@ -578,13 +570,8 @@ class JarvisApp:
 
         sample_rate = 16000
         audio_chunks = []
-        cb_calls = [0]
 
         def callback(indata, frames, time, status):
-            cb_calls[0] += 1
-            if cb_calls[0] == 1:
-                with open("/tmp/supremo_debug.log", "a") as _f:
-                    _f.write("CALLBACK: first call received\n")
             if status:
                 import sys as _sys
                 print(f"Audio: {status}", file=_sys.stderr)
@@ -615,8 +602,6 @@ class JarvisApp:
         self.ptt_active = False
         self.voice_active = False
         self.root.after(0, self._update_voice_ui)
-        with open("/tmp/supremo_debug.log", "a") as _f:
-            _f.write(f"PTT_LISTEN: stream ended, chunks={len(audio_chunks)}, cb_calls={cb_calls[0]}\n")
 
         # Transcribe captured audio
         if audio_chunks:
@@ -654,11 +639,6 @@ class JarvisApp:
             self.voice_btn.configure(
                 fg=self.MIC_ON if self.voice_enabled else self.MIC_OFF)
             self.viz.set_listening(False)
-            self._draw_logo(pulse=False)
-            if self.voice_enabled:
-                self.status_var.set("Voice off. Hold SPACE or click 🎙️")
-            else:
-                self.status_var.set("Type a command (🔧 to fix voice)")
             self._draw_logo(pulse=False)
             if self.voice_enabled:
                 self.status_var.set("Voice off. Hold SPACE or click 🎙️")
