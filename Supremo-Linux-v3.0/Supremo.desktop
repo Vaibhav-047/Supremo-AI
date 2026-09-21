@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Supremo
+Comment=Desktop Management AI
+Exec=python3 /path/to/Supremo/main.py
+Icon=utilities-terminal
+Terminal=false
+Type=Application
+Categories=Utility;

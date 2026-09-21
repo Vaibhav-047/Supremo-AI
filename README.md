@@ -1,6 +1,6 @@
 # Supremo — Desktop Management AI
 
-A small, safe desktop assistant for macOS and Windows. Talk to it from a JARVIS-style GUI or the terminal.
+A small, safe desktop assistant for macOS, Windows, and Linux. Talk to it from a JARVIS-style GUI or the terminal.
 
 ![Version](https://img.shields.io/badge/version-3.0-blue)
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-orange)
@@ -26,6 +26,23 @@ python3 supremo.py --voice
 # Voice mode (optional):
 #   macOS:   pip3 install sounddevice SpeechRecognition numpy
 #   Windows: pip install sounddevice SpeechRecognition numpy
+#   Linux:   pip3 install sounddevice SpeechRecognition numpy
+#            (may need: sudo apt-get install libasound2-dev portaudio19-dev)
+```
+
+### Installation
+
+**macOS**: Download the DMG, drag to Applications, double-click to launch.
+
+**Windows**: Download the ZIP, extract, run `run_windows.bat`. Or use `python3 main.py` after installing deps.
+
+**Linux**: Download the tar.gz:
+```bash
+tar xzf Supremo-Linux-v3.0.tar.gz
+cd Supremo-Linux-v3.0
+pip3 install -r requirements.txt  # optional, for voice mode
+./run.sh           # GUI mode
+./run.sh --cli     # CLI mode
 ```
 
 ## Commands
@@ -76,7 +93,7 @@ assistant.register_skill("weather", "Get weather for a city",
 ## GUI Features (JARVIS Mode)
 
 - **Antigravity window**: Transparent, always-on-top, borderless, fade-in animation
-- **Auto voice mode**: Starts listening on launch
+- **Auto voice mode**: Starts listening on launch — **Push-to-Talk** (hold SPACE or click 🎙️)
 - **Voice visualization**: Animated bars in the header
 - **Skills sidebar**: Shows all registered skills in a collapsible panel
 - **Chat interface**: Message bubbles with avatars, timestamps, and colors
@@ -85,15 +102,15 @@ assistant.register_skill("weather", "Get weather for a city",
 
 ## Cross-Platform Support
 
-| Feature | macOS | Windows |
-|---------|-------|---------|
-| App launcher | `open -a` | `os.startfile()` |
-| Close app | `osascript` | `taskkill` |
-| TTS | `say` | PowerShell SpeechSynthesis |
-| Screenshot | `screencapture` | PowerShell Graphics |
-| Notifications | `osascript` | WScript.Shell |
-| Clipboard | `pbcopy` | `clip` |
-| File search | `mdfind` | `pathlib.rglob()` |
+| Feature | macOS | Windows | Linux |
+||---------|-------|---------|-------|
+|| App launcher | `open -a` | `os.startfile()` | `xdg-open` |
+|| Close app | `osascript` | `taskkill` | `pkill` |
+|| TTS | `say` | PowerShell SpeechSynthesis | `espeak` / `spd-say` |
+|| Screenshot | `screencapture` | PowerShell Graphics | `scrot` / `gnome-screenshot` |
+|| Notifications | `osascript` | WScript.Shell | `notify-send` |
+|| Clipboard | `pbcopy` | `clip` | `xclip` / `wl-copy` |
+|| File search | `mdfind` | `pathlib.rglob()` | `find` / `pathlib.rglob()` |
 
 ## Safety
 

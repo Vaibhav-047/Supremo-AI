@@ -1,0 +1,20 @@
+# Supremo — Desktop Management AI dependencies
+# Core (no external packages required):
+#   - Python 3.8+
+#   - tkinter (usually included with Python)
+
+# Voice mode (optional, replaces pyaudio which has arch issues):
+#   sounddevice uses CFFI (loads portaudio at runtime) — no arch mismatch
+#   numpy needed for audio level processing (VAD)
+sounddevice>=0.4.6
+numpy>=1.24.0
+SpeechRecognition>=3.10.0
+
+# ChatGPT skill (optional — requires OPENAI_API_KEY):
+# openai>=1.0.0
+
+# Windows extras (optional, for better TTS on Windows):
+# pyttsx3>=2.90
+
+# Cross-platform notifications (optional):
+# plyer>=2.1.0
