@@ -33,3 +33,6 @@ Supremo-Windows.zip
 Supremo.dmg
 *.app
 *.dmg
+# Debug / diagnostic files (local only)
+DEBUG_LOGS.md
+diagnose_voice.py
