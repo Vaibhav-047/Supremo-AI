@@ -17,6 +17,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - **Fix: PTT blocked by input field focus** — `self.input_field.focus_set()` at line 387 gave keyboard focus to the Entry widget at startup. When the user pressed Space, it was captured by the Entry widget (inserting a space character). The PTT handler detected `isinstance(focused, tk.Entry)` and returned early, so PTT never started. **Fix**: Removed auto-focus from input field, added `root.focus_set()` in `main()`, and added a click handler on window background to restore root focus. Clicking the input field still gives it focus for typing.
 
+### Errors Faced & Diagnosing Process
+
+The voice input had **3 separate bugs** that were discovered sequentially through systematic debugging:
+
+1. **`TypeError: callback() takes 3 positional arguments but 4 were given`** — First identified by isolating the sounddevice callback with a direct test:
+   ```python
+   def callback(indata, frames, time, status):  # 4 params, not 3
+   ```
+   The error was silently swallowed by CFFI's callback wrapper — no traceback appeared in the app's GUI.
+
+2. **0 audio chunks captured despite stream opening** — Verified by testing the sounddevice callback in isolation with `/usr/local/bin/python3`:
+   ```
+   Callback fired ✓
+   Audio chunks: 312 ✓
+   Audio bytes: 9,984,000 ✓
+   RMS level: 182.71 ✓
+   ```
+   This confirmed the callback fix worked, isolating the next bug.
+
+3. **10-second delay after releasing Space** — The user released Space but transcription didn't start for 10 seconds. Diagnosed by tracing the `_ptt_listen` method: `sd.sleep(10000)` blocks regardless of `CallbackStop`.
+
+4. **PTT not triggering at all** — User reported Space key did nothing. Debug logging to `/tmp/supremo_debug.log` revealed:
+   ```
+   PTT_PRESS: focused=None, voice_enabled=True, ptt_active=False
+   ```
+   Wait — actually, the FIRST debug run showed:
+   ```
+   PTT_PRESS: focused=Entry, voice_enabled=True, ptt_active=False
+   PTT_PRESS: skipped (input field focused)
+   ```
+   This pinpointed `focus_set()` as the culprit — Space was going to the Entry widget, not PTT.
+
+5. **macOS 26 Python crash** — Initial build used system Python 3.9 which crashed with "macOS 26 (2603) or later required, have instead 16 (1603)". Fixed by using `/usr/local/bin/python3` (3.14) via the launcher script.
+
+6. **App "just runs then closes" (DMG issue)** — The app bundle's launcher (`Contents/MacOS/Supremo`) was using the wrong Python interpreter. Fixed the launcher script to prefer `/usr/local/bin/python3` and handle architecture mismatches.
+
 ### Cross-Platform Support
 
 - **Added Linux support**: `IS_LINUX` constant and platform detection in `supremo.py`
