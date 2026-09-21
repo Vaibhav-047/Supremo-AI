@@ -539,20 +539,34 @@ class JarvisApp:
     # Push-to-Talk (hold Space key to listen)
     # ------------------------------------------------------------------
     def _on_ptt_press(self, event):
+        # Log to debug file for troubleshooting
+        import os as _os
+        with open("/tmp/supremo_debug.log", "a") as _f:
+            _f.write(f"PTT_PRESS: focused={self.root.focus_get()}, voice_enabled={self.voice_enabled}, ptt_active={self.ptt_active}\n")
         # Don't trigger PTT when typing in the input field
         focused = self.root.focus_get()
         if isinstance(focused, tk.Entry):
+            with open("/tmp/supremo_debug.log", "a") as _f:
+                _f.write("PTT_PRESS: skipped (input field focused)\n")
             return
         if not self.voice_enabled or self.ptt_active:
+            with open("/tmp/supremo_debug.log", "a") as _f:
+                _f.write(f"PTT_PRESS: skipped (voice_enabled={self.voice_enabled}, ptt_active={self.ptt_active})\n")
             return
         self.ptt_active = True
         self.voice_active = True
         self._update_voice_ui()
+        with open("/tmp/supremo_debug.log", "a") as _f:
+            _f.write("PTT_PRESS: starting recording thread\n")
         threading.Thread(target=self._ptt_listen, daemon=True).start()
 
     def _on_ptt_release(self, event):
+        with open("/tmp/supremo_debug.log", "a") as _f:
+            _f.write(f"PTT_RELEASE: ptt_active={self.ptt_active}\n")
         if self.ptt_active:
             self.ptt_active = False
+            with open("/tmp/supremo_debug.log", "a") as _f:
+                _f.write("PTT_RELEASE: stopping recording\n")
 
     def _ptt_listen(self):
         """Record audio via sounddevice while PTT key is held, then transcribe."""
@@ -562,8 +576,13 @@ class JarvisApp:
 
         sample_rate = 16000
         audio_chunks = []
+        cb_calls = [0]
 
         def callback(indata, frames, time, status):
+            cb_calls[0] += 1
+            if cb_calls[0] == 1:
+                with open("/tmp/supremo_debug.log", "a") as _f:
+                    _f.write("CALLBACK: first call received\n")
             if status:
                 import sys as _sys
                 print(f"Audio: {status}", file=_sys.stderr)
@@ -594,6 +613,8 @@ class JarvisApp:
         self.ptt_active = False
         self.voice_active = False
         self.root.after(0, self._update_voice_ui)
+        with open("/tmp/supremo_debug.log", "a") as _f:
+            _f.write(f"PTT_LISTEN: stream ended, chunks={len(audio_chunks)}, cb_calls={cb_calls[0]}\n")
 
         # Transcribe captured audio
         if audio_chunks:
