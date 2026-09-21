@@ -25,3 +25,11 @@ build/
 .env
 .venv/
 venv/
+
+# Build artifacts
+Supremo-Linux-v3.0/
+Supremo-Linux-v3.0.tar.gz
+Supremo-Windows.zip
+Supremo.dmg
+*.app
+*.dmg
