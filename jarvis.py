@@ -246,9 +246,10 @@ class JarvisApp:
         root.eval("tk::PlaceWindow . center")
         root.configure(bg=self.GRADIENT_BOTTOM)
 
-        # Main container
+        # Main container — click to focus root (enables Space PTT)
         main_container = tk.Frame(root, bg=self.GRADIENT_BOTTOM)
         main_container.pack(fill="both", expand=True)
+        main_container.bind("<Button-1>", lambda e: root.focus_set())
 
         # ── Header (drag area + controls) ──
         header = tk.Frame(main_container, bg=self.PANEL, height=60,
@@ -384,7 +385,8 @@ class JarvisApp:
             relief="flat", borderwidth=0, highlightthickness=0, width=1)
         self.input_field.pack(fill="x", padx=12, pady=10)
         self.input_field.bind("<Return>", self.on_enter)
-        self.input_field.focus_set()
+        # Don't auto-focus the input field — let Space key trigger PTT when
+        # the user clicks window background. Click input field to type.
 
         # Button row
         btn_row = tk.Frame(input_frame, bg=self.GRADIENT_BOTTOM)
@@ -968,6 +970,7 @@ def main():
     root.bind("<Escape>", lambda e: root.quit())
     root.bind_all("<space>", app._on_ptt_press)
     root.bind_all("<KeyRelease-space>", app._on_ptt_release)
+    root.focus_set()  # Give root focus so Space triggers PTT (not typing)
 
     # Antigravity: fade-in animation
     root.wm_attributes("-alpha", 0.0)
