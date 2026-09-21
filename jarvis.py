@@ -577,7 +577,10 @@ class JarvisApp:
                 dtype="int16", callback=callback
             ) as stream:
                 # Block until PTT released or phrase limit reached
-                sd.sleep(int(self.assistant.PHRASE_LIMIT * 1000))
+                import time
+                start_time = time.time()
+                while self.ptt_active and (time.time() - start_time) < self.assistant.PHRASE_LIMIT:
+                    sd.sleep(100)
         except Exception as e:
             self.root.after(0, self.add_message, "error", "Error",
                             f"Voice input error: {e}")
